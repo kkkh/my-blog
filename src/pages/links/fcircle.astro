@@ -45,6 +45,18 @@ const title = '友圈 | 茗辰原'
 <!-- ═══ Friend-Circle-Lite 插件样式（本地精简版，颜色由下方主题覆盖接管） ═══ -->
 <link rel="stylesheet" href="/fclite/fclite.css" />
 
+<!-- 初次整页加载：静态引用让浏览器尽早并行下载插件脚本（Swup 切页时由 Layout 常驻脚本兜底加载） -->
+<script is:inline>
+  window.UserConfig = window.UserConfig || {
+    private_api_url: 'https://fc.mingcy.cn/',
+    page_turning_number: 24,
+    error_img: '/fclite/avatar-fallback.svg',
+  }
+</script>
+
+<script is:inline src="/fclite/fclite.js">
+</script>
+
 <style is:global>
   /* ═══════════════════════════════════════
      FEED / STATUS 区块

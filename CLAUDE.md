@@ -890,3 +890,27 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 **验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist `index.html` 核验两条 Umami 脚本均恢复。
 
 **注意：** 若访客在 Edge/带广告拦截的浏览器打开站点，控制台仍会出现同类拦截报错——属浏览器自带行为，非站点缺陷，无需处理；统计功能在未拦截环境下正常收集（自建实例为主）。
+
+### 2026-08-18 20:25 - 朋友圈 Swup 切页空白修复 & 初次加载优化（初始化移入 Layout body 级常驻脚本）
+
+**背景：** 用户反馈生产环境 `/links/fcircle` 异常：**初次访问（从首页 Swup 导航进入）插件区空白、友链状态卡"加载中…"，整页刷新后才正常**。截图证据：页面仅显示"友链状态 加载中…"，`#friend-circle-lite-root` 完全空白。
+
+**根因（关键机制修正）：** 朋友圈的插件脚本与状态拉取此前放在 fcircle 页面（`main` 容器）内的 `is:inline` 脚本中。**`@swup/astro` 切页时只替换 `main` 容器，容器内的 inline 脚本不会重新执行**——之前误以为 SwupScriptsPlugin 会执行（实际未生效）。因此从首页 Swup 导航进朋友圈时：插件脚本（fclite.js）未加载/未初始化 → 动态区空白；status fetch 未执行 → 卡"加载中…"；只有整页刷新（脚本随 HTML 重新解析执行）才正常。
+
+**修改文件：**
+
+- `src/layouts/Layout.astro`：body 末尾新增 `is:inline` **常驻全局脚本**（Swup 永不替换 body，监听器一直有效）：
+  - `window.UserConfig` 兜底定义（`private_api_url: https://fc.mingcy.cn/`、`page_turning_number: 24`、`error_img: /fclite/avatar-fallback.svg`）
+  - `ensureFclite(cb)`：`typeof initialize_fc_lite === 'function'` 已加载直接回调；否则动态创建 `<script data-fclite src="/fclite/fclite.js">` 加载后回调（防重复）
+  - `boot()`：① 找到 `#friend-circle-lite-root` → 确保 fclite.js → `root.children.length === 0` 时才 `initialize_fc_lite()`；② 找 `#links-summary/#links-grid` → fetch `fc.mingcy.cn/status.json` 渲染（`dataset.state` 防重复，`esc()` 防 XSS）
+  - 触发时机：DOMContentLoaded / `swup:content:replaced` / `astro:page-load`（均 setTimeout 150-200ms 兜底）
+- `src/pages/links/fcircle.astro`：删除原 main 内三个 inline 脚本（UserConfig、fclite.js 静态引用、status fetch）后，**恢复 UserConfig 静态定义 + `<script is:inline src="/fclite/fclite.js">` 静态引用**（初次整页加载时浏览器尽早并行下载，Layout 兜底负责 Swup 切页）
+
+**双路径覆盖：**
+
+- 初次整页加载（直接访问/刷新）：静态 `<script src>` 立即下载执行 → 插件初始化；Layout 脚本 DOMContentLoaded 后 boot，`ensureFclite` 检测已加载跳过、`root.children` 非空跳过初始化；status 由 Layout 拉取
+- Swup 切页（首页→友圈）：main 内静态脚本不执行 → Layout 常驻脚本在 `swup:content:replaced` 后动态加载 fclite.js（或复用已加载）→ 初始化 → 渲染；status 重新拉取
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist 核验：fcircle 页含静态 UserConfig + `/fclite/fclite.js` 引用 + 挂载点 + `/fclite/fclite.css`；Layout 含 `FCLITE_JS` 全局脚本 + `data-fclite` 守卫 + `links-summary` 拉取 + UserConfig 兜底；用户截图确认页面已正常渲染（统计卡 + 随机文章 + 文章卡片）。
+
+**注意：** 若日后在 `main` 容器内放置依赖 Swup 切页后重新执行的逻辑，必须挂到 body 级常驻脚本（Layout.astro）或 document 级委托 + 一次性守卫，不能依赖 main 内 inline 脚本在切页后重跑。
