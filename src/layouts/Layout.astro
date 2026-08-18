@@ -99,5 +99,114 @@ const { title, description, image } = Astro.props
           })
       })
     </script>
+    <script is:inline>
+      // 朋友圈页（/links/fcircle）初始化：Swup 切页后 main 容器内的 inline 脚本不会重新执行，
+      // 会导致插件区空白、友链状态卡"加载中"。故在此 body 级常驻脚本统一处理，
+      // 页面首次加载与 Swup 切页后自动触发（插件加载 + 友链状态）。
+      ;(function () {
+        var FCLITE_JS = '/fclite/fclite.js'
+
+        // 插件配置（fclite.js 初始化依赖，Swup 切页后 main 内的 UserConfig 不会重跑）
+        window.UserConfig = window.UserConfig || {
+          private_api_url: 'https://fc.mingcy.cn/',
+          page_turning_number: 24,
+          error_img: '/fclite/avatar-fallback.svg',
+        }
+
+        function ensureFclite(cb) {
+          if (typeof initialize_fc_lite === 'function') {
+            cb()
+            return
+          }
+          if (document.querySelector('script[data-fclite]')) return
+          var s = document.createElement('script')
+          s.src = FCLITE_JS
+          s.setAttribute('data-fclite', '1')
+          s.onload = cb
+          document.head.appendChild(s)
+        }
+
+        function esc(t) {
+          if (!t) return ''
+          var d = document.createElement('div')
+          d.textContent = t
+          return d.innerHTML
+        }
+
+        function boot() {
+          // 1) 插件动态流
+          var root = document.getElementById('friend-circle-lite-root')
+          if (root) {
+            ensureFclite(function () {
+              if (root.children.length === 0) initialize_fc_lite()
+            })
+          }
+
+          // 2) 友链状态（data-state 防重复拉取）
+          var summary = document.getElementById('links-summary')
+          var grid = document.getElementById('links-grid')
+          if (summary && summary.dataset.state !== 'done') {
+            summary.dataset.state = 'done'
+            fetch('https://fc.mingcy.cn/status.json')
+              .then(function (r) {
+                return r.json()
+              })
+              .then(function (data) {
+                var links = data.link_status || []
+                var ok = 0
+                links.forEach(function (it) {
+                  if (it.success) ok++
+                })
+                summary.innerHTML =
+                  '<span class="stat-ok">' +
+                  ok +
+                  ' 正常</span>' +
+                  '<span class="stat-sep">·</span>' +
+                  '<span class="stat-fail">' +
+                  (links.length - ok) +
+                  ' 异常</span>'
+                if (!grid) return
+                grid.innerHTML = links
+                  .map(function (item) {
+                    var cls = item.success ? 'ok' : 'fail'
+                    var label = item.success ? '正常' : '异常'
+                    return (
+                      '<a class="status-card ' +
+                      cls +
+                      '" href="' +
+                      item.link +
+                      '" target="_blank" rel="noopener" title="' +
+                      esc(item.name) +
+                      '">' +
+                      '<span class="sc-indicator"></span>' +
+                      '<span class="sc-name">' +
+                      esc(item.name) +
+                      '</span>' +
+                      '<span class="sc-label">' +
+                      label +
+                      '</span></a>'
+                    )
+                  })
+                  .join('')
+              })
+              .catch(function () {
+                summary.textContent = '暂无数据'
+              })
+          }
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', boot)
+        } else {
+          setTimeout(boot, 200)
+        }
+        document.addEventListener('swup:content:replaced', function () {
+          setTimeout(boot, 150)
+        })
+        document.addEventListener('astro:page-load', function () {
+          setTimeout(boot, 150)
+        })
+      })()
+    </script>
   </body>
 </html>

@@ -10,8 +10,8 @@ const title = '友圈 | 茗辰原'
   · 全部颜色走主题 CSS 变量（--color-accent / --color-bg-* / --color-text-* / --color-border-*），
     插件 CSS 本身用 [data-theme=light/dark] 选择器 —— html[data-theme] 由站点主题系统维护，
     切换黑白模式时本页自动跟随，无需在页面内单独切换。
-  · 插件脚本/样式加载在 main 容器内，@swup/astro 的 scripts 插件在 Swup 切页时会重新执行，
-    进入本页即自动初始化。
+  · 插件初始化（fclite.js 加载 + 友链状态拉取）由 Layout.astro 的 body 级常驻脚本统一处理，
+    兼容 Swup 切页（main 内 inline 脚本在切页后不会重新执行，见 2026-08-18 修复记录）。
 -->
 <PageLayout title={title}>
   <div class="fcircle-wrap mx-auto max-w-[1100px] px-4 md:px-8 py-10">
@@ -44,93 +44,6 @@ const title = '友圈 | 茗辰原'
 
 <!-- ═══ Friend-Circle-Lite 插件样式（本地精简版，颜色由下方主题覆盖接管） ═══ -->
 <link rel="stylesheet" href="/fclite/fclite.css" />
-
-<script is:inline>
-  // 插件配置（主题由插件 CSS 的 [data-theme] 选择器自动跟随站点主题）
-  if (typeof UserConfig === 'undefined') {
-    var UserConfig = {
-      private_api_url: 'https://fc.mingcy.cn/',
-      page_turning_number: 24,
-      error_img: '/fclite/avatar-fallback.svg',
-    }
-  }
-</script>
-
-<script is:inline src="/fclite/fclite.js">
-</script>
-
-<script is:inline>
-  // ── 友链状态（fc.mingcy.cn/status.json）──
-  // 注：插件统计区已由本地 fclite.js 精简为只渲染「更新时间」，
-  // 无需再运行时清理版权行。
-  ;(function () {
-    fetch('https://fc.mingcy.cn/status.json')
-      .then(function (r) {
-        return r.json()
-      })
-      .then(function (data) {
-        var links = data.link_status || []
-        var okCount = 0
-        links.forEach(function (item) {
-          if (item.success) okCount++
-        })
-        var failCount = links.length - okCount
-
-        var summaryEl = document.getElementById('links-summary')
-        if (summaryEl) {
-          summaryEl.innerHTML =
-            '<span class="stat-ok">' +
-            okCount +
-            ' 正常</span>' +
-            '<span class="stat-sep">·</span>' +
-            '<span class="stat-fail">' +
-            failCount +
-            ' 异常</span>'
-        }
-
-        var grid = document.getElementById('links-grid')
-        if (!grid) return
-        if (links.length === 0) {
-          grid.innerHTML = '<div class="status-empty">暂无数据</div>'
-          return
-        }
-        grid.innerHTML = links
-          .map(function (item) {
-            var cls = item.success ? 'ok' : 'fail'
-            var label = item.success ? '正常' : '异常'
-            return (
-              '<a class="status-card ' +
-              cls +
-              '" href="' +
-              item.link +
-              '" target="_blank" rel="noopener" title="' +
-              item.name +
-              '">' +
-              '<span class="sc-indicator"></span>' +
-              '<span class="sc-name">' +
-              esc(item.name) +
-              '</span>' +
-              '<span class="sc-label">' +
-              label +
-              '</span>' +
-              '</a>'
-            )
-          })
-          .join('')
-      })
-      .catch(function () {
-        var el = document.getElementById('links-summary')
-        if (el) el.textContent = '暂无数据'
-      })
-
-    function esc(t) {
-      if (!t) return ''
-      var d = document.createElement('div')
-      d.textContent = t
-      return d.innerHTML
-    }
-  })()
-</script>
 
 <style is:global>
   /* ═══════════════════════════════════════
