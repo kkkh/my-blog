@@ -1,0 +1,133 @@
+{
+  "site": {
+    "url": "https://mingcy.cn",
+    "title": "茗辰原",
+    "description": "茶香四溢，编程世界。",
+    "keywords": "茗辰原,blog,mcy,mingcy,博客,技术,生活,编程",
+    "lang": "zh-CN",
+    "favicon": "/favicon.svg",
+    "appleTouchIcon": "/apple-touch-icon.png"
+  },
+  "author": {
+    "name": "茗辰原",
+    "twitterId": "@mingcy070329",
+    "avatar": "https://mingcy.cn/image/mcy.png"
+  },
+  "hero": {
+    "name": "茗辰原",
+    "bio": "茶香四溢，编程世界。",
+    "description": "INFJ-T | 学生 | 网络安全爱好者",
+    "socials": [
+      {
+        "name": "Github",
+        "icon": "icon-github",
+        "url": "https://github.com/rumian0",
+        "color": "rgb(24, 23, 23)"
+      },
+      {
+        "name": "X",
+        "icon": "icon-x",
+        "url": "https://x.com/mingcy070329",
+        "color": "rgb(36, 46, 54)"
+      },
+      {
+        "name": "Email",
+        "icon": "icon-mail",
+        "url": "mailto:mcy@mingcy.cn",
+        "color": "rgb(212, 70, 56)"
+      }
+    ],
+    "yiyan": "将喜欢的一切藏在身边，这就是努力的意义。"
+  },
+  "color": {
+    "accent": [
+      { "light": "#F55555", "dark": "#325ea3" },
+      { "light": "#0396FF", "dark": "#ABDCFF" },
+      { "light": "#fb7287", "dark": "#99D8CF" },
+      { "light": "#F072B6", "dark": "#3ac8f6" },
+      { "light": "#9F44D3", "dark": "#E2B0FF" },
+      { "light": "#FF6666", "dark": "#A1CCD1" },
+      { "light": "#F6416C", "dark": "#838BC6" },
+      { "light": "#32CCBC", "dark": "#90F7EC" },
+      { "light": "#33A6B8", "dark": "#79F1A4" },
+      { "light": "#F55555", "dark": "#297aa0" }
+    ],
+    "bg": {
+      "primary": { "light": "#f2f5ec", "dark": "#10131a" },
+      "secondary": { "light": "#e9eddb", "dark": "#1a2131" }
+    },
+    "text": {
+      "primary": { "light": "#33373a", "dark": "#f6f7f8" },
+      "secondary": { "light": "#5f6b5a", "dark": "#a9b4c9" }
+    },
+    "border": {
+      "primary": { "light": "#d5dcc6", "dark": "#2e3b59" }
+    }
+  },
+  "menus": [
+    {
+      "name": "首页",
+      "link": "/",
+      "icon": "icon-pantone"
+    },
+    {
+      "name": "归档",
+      "link": "/archives",
+      "icon": "icon-archive"
+    },
+    {
+      "name": "项目",
+      "link": "/projects",
+      "icon": "icon-rocket",
+      "children": [
+        { "name": "项目", "link": "/projects" },
+        { "name": "工具", "link": "/tools" }
+      ]
+    },
+    {
+      "name": "相册",
+      "link": "/galleries",
+      "icon": "icon-flask"
+    },
+    {
+      "name": "关于",
+      "link": "/about",
+      "icon": "icon-ghost"
+    },
+    {
+      "name": "友链",
+      "link": "/links",
+      "icon": "icon-hearts",
+      "children": [
+        { "name": "友链", "link": "/links" },
+        { "name": "友圈", "link": "/links/fcircle" },
+        { "name": "申请友链", "link": "/links/apply" }
+      ]
+    }
+  ],
+  "posts": {
+    "perPage": 5
+  },
+  "footer": {
+    "startTime": "2024-01-21T00:00:00Z"
+  },
+  "twikoo": {
+    "envId": "https://twikoo.mingcy.cn/"
+  },
+  "sponsor": {
+    "wechat": "https://mingcy.cn/image/wechat.png"
+  },
+  "analytics": {
+    "enable": false,
+    "google": {
+      "measurementId": ""
+    },
+    "umami": {
+      "serverUrl": "https://um.mingcy.cn",
+      "websiteId": "2dec6bd6-3aa9-49f5-a7ec-cb0c23c74f44"
+    },
+    "microsoftClarity": {
+      "projectId": ""
+    }
+  }
+}

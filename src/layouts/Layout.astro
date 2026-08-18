@@ -1,0 +1,103 @@
+---
+import {
+  CommonHead,
+  WebAnalytics,
+  ThemeLoader,
+  AccentColorInjector,
+  PrintVersion,
+} from '@/components/head'
+import { BackToTopFAB } from '@/components/BackToTopFAB'
+import { ToastContainer } from '@/components/ToastContainer'
+import { ModalStack } from '@/components/ui/modal'
+import SpeedInsights from '@vercel/speed-insights/astro'
+import Analytics from '@vercel/analytics/astro'
+import { site } from '@/config.json'
+import AuroraBackground from '@/components/background/AuroraBackground.astro'
+import '@/styles/global.css'
+
+interface Props {
+  title?: string
+  description?: string
+  image?: string
+}
+
+const { title, description, image } = Astro.props
+---
+
+<!doctype html>
+<html lang={site.lang}>
+  <head>
+    <CommonHead title={title} description={description} image={image} />
+    <WebAnalytics />
+    <ThemeLoader />
+    <AccentColorInjector />
+    <PrintVersion />
+    <script is:inline async defer src="https://um.mingcy.cn/script.js" data-website-id="2dec6bd6-3aa9-49f5-a7ec-cb0c23c74f44"></script>
+    <script is:inline async defer src="https://cloud.umami.is/script.js" data-website-id="86be4560-edbf-468b-9897-813f94dfe6c3"></script>
+  </head>
+  <body>
+    <AuroraBackground />
+    <div class="site-grain hidden-mobile pointer-events-none fixed inset-0 z-0" aria-hidden="true"></div>
+
+    <slot />
+
+    <BackToTopFAB client:only="react" />
+    <ToastContainer client:only="react" />
+    <ModalStack client:only="react" />
+    <SpeedInsights />
+    <Analytics />
+    <script is:inline>
+      // Swup 切页前（main 内容替换前）通知 main 内所有 React island 释放
+      // 定时器/rAF/观察器/监听器，防止旧实例泄漏导致页面切换卡顿
+      document.addEventListener('swup:content:replace', () => {
+        document.dispatchEvent(new CustomEvent('mcy:island-cleanup'))
+      })
+    </script>
+    <script is:inline>
+      // 滚动时临时移除 backdrop-filter（毛玻璃是滚动重绘卡顿的主因），
+      // 滚动停止 120ms 后恢复玻璃效果；配合 body.is-scrolling 的 CSS 降级规则
+      (function () {
+        var ticking = false
+        var timer = null
+        var onScroll = function () {
+          if (ticking) return
+          ticking = true
+          requestAnimationFrame(function () {
+            document.body.classList.add('is-scrolling')
+            ticking = false
+            clearTimeout(timer)
+            timer = setTimeout(function () {
+              document.body.classList.remove('is-scrolling')
+            }, 120)
+          })
+        }
+        window.addEventListener('scroll', onScroll, { passive: true })
+      })()
+    </script>
+    <script is:inline>
+      // 代码块复制按钮（委托到 document，Swup 切页后依然生效）
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.copy-code')
+        if (!btn) return
+        var block = btn.closest('.code-block')
+        var pre = block ? block.querySelector('pre') : null
+        var text = pre ? pre.innerText : ''
+        if (!text) return
+        navigator.clipboard
+          .writeText(text)
+          .then(function () {
+            btn.textContent = '已复制 ✓'
+            setTimeout(function () {
+              btn.textContent = '复制'
+            }, 800)
+          })
+          .catch(function () {
+            btn.textContent = '复制失败'
+            setTimeout(function () {
+              btn.textContent = '复制'
+            }, 1200)
+          })
+      })
+    </script>
+  </body>
+</html>

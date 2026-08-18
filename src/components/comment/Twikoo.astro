@@ -1,0 +1,96 @@
+<div id="twikoo" class="mt-10 mb-4"></div>
+
+<script is:inline>
+  (function () {
+    var checkExist = setInterval(function () {
+      if (document.getElementById('twikoo')) {
+        clearInterval(checkExist)
+        var script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/npm/twikoo@1.7.19/dist/twikoo.all.min.js'
+        script.onload = function () {
+          twikoo.init({
+            envId: 'https://twikoo.mingcy.cn/',
+            el: '#twikoo',
+          })
+        }
+        document.head.appendChild(script)
+      }
+    }, 500)
+  })()
+</script>
+
+<style is:global>
+  #twikoo {
+    font-family: inherit;
+  }
+  #twikoo * {
+    font-family: inherit;
+  }
+  #twikoo .el-textarea textarea {
+    border: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent) !important;
+    border-radius: 1rem !important;
+    background: color-mix(in srgb, var(--color-text-primary) 3%, var(--color-bg-primary)) !important;
+    color: var(--color-text-primary) !important;
+    font-size: 0.9rem !important;
+    line-height: 1.6 !important;
+    padding: 1rem !important;
+    transition: all 0.3s ease;
+  }
+  #twikoo .el-textarea textarea:focus {
+    outline: none !important;
+    border-color: var(--color-accent) !important;
+  }
+  #twikoo .tk-action-btn,
+  #twikoo .tk-btn {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent) !important;
+    border-radius: 2rem !important;
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent) !important;
+    color: var(--color-accent) !important;
+    font-weight: 600 !important;
+    font-size: 0.8rem !important;
+    padding: 0.4rem 1.2rem !important;
+    transition: all 0.3s ease !important;
+    cursor: pointer;
+  }
+  #twikoo .tk-action-btn:hover,
+  #twikoo .tk-btn:hover {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent) !important;
+  }
+  #twikoo .tk-comment {
+    border: 1px solid color-mix(in srgb, var(--color-border) 20%, transparent) !important;
+    border-radius: 1rem !important;
+    background: color-mix(in srgb, var(--color-text-primary) 2%, var(--color-bg-primary)) !important;
+    padding: 1.25rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  #twikoo .tk-comment:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 20%, transparent) !important;
+  }
+  #twikoo .tk-avatar {
+    border-radius: 0.75rem !important;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--color-border) 15%, transparent) !important;
+  }
+  #twikoo .tk-avatar img {
+    border-radius: 0.75rem !important;
+  }
+  #twikoo .tk-author {
+    color: var(--color-accent) !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+  }
+  #twikoo .tk-time {
+    color: color-mix(in srgb, var(--color-text-primary) 40%, transparent) !important;
+    font-size: 0.75rem !important;
+  }
+  #twikoo .tk-content {
+    color: var(--color-text-primary) !important;
+    line-height: 1.7 !important;
+    font-size: 0.9rem !important;
+  }
+  #twikoo .tk-replies {
+    margin-left: 0.5rem !important;
+    padding-left: 1rem !important;
+    border-left: 2px solid color-mix(in srgb, var(--color-accent) 15%, transparent) !important;
+  }
+</style>

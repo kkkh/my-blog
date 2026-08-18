@@ -1,0 +1,892 @@
+# astro-gyoza — Astro 博客主题迁移项目
+
+基于 Astro 4 + React 18 + Tailwind CSS 的静态博客主题。从旧版 Astro 博客迁移至本主题。
+
+## 角色定位
+
+你是**高级 Astro 设计师**，同时也是**爱折腾的博主**。对 Astro、React、Tailwind CSS 生态非常熟悉，追求代码整洁、性能优化和用户体验。
+
+## 核心约束（必读）
+
+### 只读规则
+
+- **只能修改 `astro-gyoza/` 目录下的文件**
+- `astro-gyoza/` 之外的所有文件（包括父目录 `opencode/` 下的其他文件和目录）**均为只读，禁止修改**
+- 需要参考旧代码时，读取后告知我内容，但**绝不修改**
+
+### 确认规则
+
+- **每次修改文件前必须先向我确认**，说明要改什么、为什么改、怎么改
+- 我确认后你才能执行修改
+
+## 技术栈
+
+- 框架：Astro 4
+- 前端：React 18、TypeScript、Tailwind CSS 3
+- 动画：Framer Motion、Swup
+- 状态管理：Jotai
+- 评论：Waline
+- 搜索：Pagefind
+- 数学公式：KaTeX
+- 包管理：pnpm
+
+## 常用命令
+
+```bash
+pnpm dev          # 启动开发服务器
+pnpm build        # 构建生产版本（含类型检查和 Pagefind 索引）
+pnpm preview      # 预览生产构建
+pnpm lint         # Prettier 格式化
+pnpm new-post     # 创建新文章
+pnpm new-project  # 创建新项目
+pnpm new-friend   # 添加友链
+```
+
+## 项目结构
+
+```
+astro-gyoza/
+├── src/
+│   ├── assets/        # 静态资源（图片等）
+│   ├── components/    # 可复用组件（React + Astro）
+│   ├── content/       # Markdown 内容（文章、项目等）
+│   ├── hooks/         # React 自定义 Hooks
+│   ├── layouts/       # 页面布局
+│   ├── pages/         # 路由页面
+│   ├── plugins/       # Astro 插件（remark/rehype）
+│   ├── store/         # Jotai 状态管理
+│   ├── styles/        # 全局样式
+│   └── utils/         # 工具函数
+├── public/            # 公共静态资源
+└── scripts/           # Node 脚本
+```
+
+## 编码规范
+
+- 使用 pnpm，禁止 npm/yarn
+- 组件文件使用 `.astro` 或 `.tsx`/`.jsx` 扩展名
+- 路径别名 `@/*` 映射到 `src/*`
+- 提交信息使用 conventional commits 格式
+
+## 注意事项
+
+- 修改 `src/config.json`（站点配置）前必须确认
+- 修改 `astro.config.js` 前必须确认
+- 修改 `package.json`（依赖变更）前必须确认
+- 迁移过程中不删除旧文件，只新增或修改本目录内文件
+
+## 迁移记录
+
+### 2026-08-16 - Umami 浏览量尾斜杠归一化累计 & 页脚游客数改曝光次数
+
+**背景：** 用户反馈单篇文章浏览量「明显偏少」，并指出根因——Umami 历史记录里同一篇文章可能同时存在**带尾斜杠**（旧 `/2024/09/07/ode/`）与**不带尾斜杠**（新 `/2026/08/08/new-work`）两条 path 记录；原 `ReadCount.astro` 构建 map 时把 `map[normalizePath(row.x)] = value` 直接赋值，**后写覆盖先写**，等于丢掉了其中一条记录的浏览量 → 展示偏少。同时要求页脚由「游客访问数」改为「曝光次数」，数字化用 pageviews。
+
+**修改文件：**
+
+- `src/components/post/ReadCount.astro`
+- `src/components/footer/SiteVisitors.astro`
+
+**修改内容：**
+
+- **ReadCount.astro**：构建全站 path→views map 时由「后写覆盖」改为**按归一化 key 累加**（`map[key] = (map[key]||0) + value`）。`normalizePath` 去尾斜杠后同篇文章的两条记录（`/a/b/` 与 `/a/b`）合并为一条，浏览量相加，恢复完整计数。`startAt=0` 本就全时段累计，无需改动。
+- **SiteVisitors.astro**：数据源字段 `stats.visitors`（独立访客）→ `stats.pageviews`（页面曝光）；文案「已经有 N 游客访问过本站」→「本站已被曝光 N 次」，`title`/`aria-label` 同步改为「全站累计曝光次数」。
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete。（全量 `pnpm build` 的 AI 摘要生成步骤需外网调用 ai.mingcy.cn，本环境无外网故仅验 check+build。）
+
+### 2026-08-16 - 阅读数组件修复（COUNTER_GET 真实返回结构 & 去数组批量）
+
+**现象：** `ReadCount.astro` 部署后博客一直显示 `--`。
+
+**根因（对照上游源码 + 实测接口确认）：**
+
+- **读错字段**：Twikoo `COUNTER_GET` 返回结构是 `{ data: <计数doc>, time, updated, accessToken }`，计数在 **`data.time`**（上游 `counterGet`：`res.data = record.data[0]`），原组件按 `item.value` 读取 → 永远 `NaN` → 全部 `--`
+- **数组批量不被支持**：实测 `url` 传数组返回 `data:{}`（后端精确匹配 `where({url: 单值})`）；`COUNTER_GETS` 事件返回 `code:1001`「请更新云函数」——该后端无批量事件，只能单 url 逐条查询
+- **上游行为确认**：每次 `COUNTER_GET` 读取会**自增计数**（`res.updated = await incCounter(event)`）；未统计过的新文章返回 `data:{}`（应显示 0，非错误）；读取活跃期多篇文章可能因 bucket 聚合共享一条计数 doc（实测 5 篇近文共享 `_id=6a813bcf…`）
+
+**修改内容：**
+
+- `src/components/post/ReadCount.astro` 脚本部分重写：
+  - **批量一次请求 → 按 path 分组并发单查**（逐 url 发 `COUNTER_GET`）
+  - **数值读取 `data.time`**，兜底 `data.value`，空 doc 记 0
+  - **会话级内存缓存 `cache[path]`**：同一 path 只请求一次，Swup 切页/重复渲染不重复请求、不重复自增
+  - 失败显示 `--` 且不缓存（瞬时网络错误不污染会话）
+  - 其余不变：幂等守卫、DOMContentLoaded 延迟、Swup/astr5 切页重拉、`text-secondary` 主题适配
+
+**验证：** `pnpm build` 通过（204 pages, 0 errors, Pagefind 85 pages）；dist 中脚本含 `data.time` 读取逻辑；接口单查返回 `{data.time: N}` 正常。
+
+**注意（向后端/数据）：** 该部署是逐次读取自增 + bucket 聚合模型，页面卡片每刷新一次会让对应计数 doc `time` +1；若需精确按文章隔离统计，需在后端数据层面确认 counter 集合记录（本项目仓库只读边界外）。
+
+### 2026-08-16 - 文章浏览量展示（Twikoo COUNTER_GET 纯 fetch，不引入 SDK）
+
+**修改文件：**
+
+- `src/components/post/ReadCount.astro`（新建，浏览量标签组件）
+- `src/components/post/PostCard.astro`（首页卡片 meta 行接入）
+- `src/components/post/PostMetaInfo.astro`（文章页头部 meta 接入）
+- `src/pages/[year]/[month]/[day]/[slug].astro`（给 PostMetaInfo 传 postPath/postTitle）
+
+**修改内容：**
+
+- **新建 `ReadCount.astro`（可复用 Astro 组件）**，接收两个 props：
+  - `postPath`：文章路由路径（如 `/2026/08/16/slug`），作为 Twikoo 计数 key
+  - `postTitle`：文章标题
+  - `class`：透传 class 控制间距/对齐（可选）
+  - 渲染：眼睛 SVG + 「阅读量」文字 + 数字（初始 `--`），`text-secondary` 色 + `tabular-nums`，随 CSS 变量自适应明暗/随机 accent 主题
+- **纯 fetch 请求**：`POST https://twikoo.mingcy.cn`，body `{ event: 'COUNTER_GET', url: <单路径>, title: <单标题> }`，无需 token、无自定义头；**未引入 twikoo 完整 SDK**
+- **同页多实例处理**：由幂等守卫的 `is:inline` 内联脚本按 path 分组并发单查（~~数组批量一次请求~~ 该后端不支持，见下方修复记录），同 path 会话级缓存只请求一次
+- **不阻塞首屏**：内联脚本（约 1.5KB，零外部依赖）仅首个实例注册逻辑，`DOMContentLoaded`/`requestAnimationFrame` 延迟执行，避开首帧；fetch 为异步，不参与渲染关键路径
+- **异常兜底**：网络/HTTP 非 200/JSON 解析失败均 `.catch` 后显示 `--`，页面绝不崩溃；千分位格式化（1,234）
+- **Swup 兼容**：监听 `swup:content:replaced` / `astro:page-load` / `popstate` 在切页后重新拉取新页面 `.read-count` 节点（`data-state=done` 防重复请求）
+- **接入位置**：PostCard 的 `.post-meta`（日期 | 时长 | 阅读量）；文章页 PostMetaInfo 头部 meta（postPath 用 `mdSlug`）
+
+**保留不动：** `Comments.astro`、`Twikoo.astro`（评论模块原样），`config.json` 未改，无新增依赖。
+
+**原因：** 在文章卡片与详情页展示 Twikoo 已统计的浏览量，无需加载完整评论 SDK、不影响 LCP、异常降级为 `--`。**注意：** 本组件只读计数（COUNTER_GET），不触发自增；如需自增可在阅读时另发 `KEEP_COUNTER`。构建通过（204 pages, 0 errors, Pagefind 85 pages）。
+
+### 2026-07-16 15:51 - 博客文章迁移 & 构建修复完成
+
+**修改文件：** 多文件
+
+**修改内容：**
+
+- 从旧主题 `G:\文档\astro-devosfera` 迁移 74 篇博客文章至 `src/content/posts/`，转换 frontmatter 键名（`pubDatetime→date`、`description→summary`、`ogImage→cover`）
+- 拷贝 422 张图片至 `src/assets/images/`，按 slug 前缀重命名
+- 新增背景效果（backdrop、grid、cursor-glow、grain）到 `src/styles/global.css`
+- 新增内容标签样式（彩色文字、彩虹动画、标签、标记、spoiler）到 `src/styles/markdown.css`
+- 清理 `src/pages/[spec].astro` 中的友链引用
+- 降级 `@astrojs/sitemap@3.7.3` → `3.2.0`（修复与 Astro 4.6.1 的兼容性）
+- 安装缺失的 `remark-ins`、`remark-supersub` 依赖
+- 更新 zod `3.22.4` → `3.25.28`（满足 zod-to-json-schema 3.25.2 peer dep）
+- 配置 `passthroughImageService()` 绕过 sharp 安装失败
+- 修复 YAML frontmatter 解析错误（cloud-photography、tree-photo）
+- 修复损坏的图片引用（pdf-repalr、music_download、sqyy、qqth）
+- 修复 Shiki 语言代码（undefined、TOML、YAML）
+- 重命名 `mother's-day.md` → `mothers-day.md`（撇号导致 Vite 解析失败）
+- 修复 TypeScript 错误：HeaderContent.tsx 可选链、galleries/[slug].astro lightbox 脚本 `is:inline`
+
+**原因：** 完成从旧主题到新主题的完整迁移，确保 `pnpm build` 通过（146 页面、371 图片、sitemap、Pagefind 索引）
+
+### 2026-07-16 16:10 - 固定链接重构 & 文章子文件夹迁移
+
+**修改文件：** 多文件
+
+**修改内容：**
+
+- 路由文件从 `src/pages/posts/[year]/[month]/[day]/[slug].astro` 移至 `src/pages/[year]/[month]/[day]/[slug].astro`，删除旧目录
+- 74 篇文章从单文件 `src/content/posts/<slug>.md` 迁移至子文件夹 `src/content/posts/<slug>/index.md`
+- 422 张图片从 `src/assets/images/` 移入对应文章子文件夹，按 `<slug>-<name>` 命名
+- 修复迁移后的图片引用路径（gkd、123-liuliang 等）
+- 更新 `scripts/new-post.js` 支持子文件夹创建模式
+- 修复 `Header.tsx` 中 `overflow-hidden` → `overflow-visible`（友链下拉菜单被裁剪）
+- 新增文章 `src/content/posts/styling-guide/index.md`（进阶排版指南，覆盖 KaTeX、MDX、代码块高亮、表格增强、脚注等）
+
+**原因：** 消除 URL 中 `/posts/` 前缀，优化文章内容组织（图片与 Markdown 同目录），修复导航栏二级菜单显示。构建通过（153 页面、372 图片、0 错误）
+
+### 2026-07-16 17:50 - 关于页面重写 & 友链整合为单文件
+
+**修改文件：**
+
+- `src/pages/about.astro`（新建）
+- `src/data/links.ts`（新建）
+- `src/pages/links/index.astro`
+- `src/content/config.ts`
+- `scripts/new-friend.js`
+- `src/content/friends/`（删除目录及 33 个 yaml）
+- `src/components/FriendList.astro`（删除，未使用）
+
+**修改内容：**
+
+- 新建 `src/pages/about.astro`：参考 `mingcy.cn/about` 设计，包含头像名片、座右铭、技能环形进度条、生涯时间线、游戏&兴趣区块，使用本项目主题的 accent 配色与 glass-card 样式
+- 新建 `src/data/links.ts`：将 33 个散落的 yaml 友链合并为单文件，按 category 分组（大佬们/朋友们/Link3/软件阁/大家庭），顺序参考旧主题 `G:\文档\astro-devosfera\src\data\links.ts`
+- 修改 `src/pages/links/index.astro`：`getCollection('friends')` → `import { friendLinks } from '@/data/links'`
+- 删除 `src/content/friends/` 目录及全部 33 个 yaml 文件
+- 删除 `src/content/config.ts` 中的 `friendsCollection` 定义
+- 删除未使用的 `FriendList.astro` 组件
+- 更新 `scripts/new-friend.js`：从新建 yaml 改为追加条目到 `src/data/links.ts`，增加分类选择
+
+### 2026-07-17 13:00 - 移动端布局溢出修复 & 友圈链接跳转修复 & Umami 统计注入
+
+**修改文件：**
+
+- `src/components/header/Header.tsx`
+- `src/styles/global.css`
+- `src/pages/links/fcircle.astro`
+- `src/layouts/Layout.astro`
+
+**修改内容：**
+
+- Header 容器 `md:px-4` → `px-4`，修复移动端无水平 padding 导致内容贴边的问题
+- `html {}` 新增 `overflow-x: hidden`，防止全局元素溢出造成水平滚动
+- 友圈 iframe sandbox 追加 `allow-top-navigation allow-popups`，修复内部链接无法跳转的问题
+- Layout head 注入两条 Umami 统计脚本（自建 `um.mingcy.cn` + 云版 `cloud.umami.is`），添加 `is:inline` 消除 Astro 提示
+
+**原因：** 修复移动端布局错位（header 贴边、全局溢出）；解锁 iframe 内链接导航权限；部署双 Umami 实例保障统计不中断。构建通过（0 errors, 0 warnings, 0 hints）
+
+### 2026-07-17 13:42 - Sitemap 完善 & 性能优化 & TOC 重写（Shiro 风格）
+
+**修改文件：**
+
+- `astro.config.js`
+- `src/layouts/Layout.astro`
+- `src/components/post/PostToc.tsx`
+- `src/pages/[year]/[month]/[day]/[slug].astro`
+- `src/components/post/ActionAside.tsx`
+
+**修改内容：**
+
+- Sitemap 配置：添加 `filter`（排除 404）、`lastmod`（构建时间）、`changefreq: weekly`、`priority: 0.7`，所有 URL 带上 lastmod 标签
+- 性能优化：两条 Umami 统计脚本添加 `async`，避免阻塞页面渲染
+- TOC 重写：
+  - 滚动追踪从 `scroll` 事件 + `getBoundingClientRect` 改为 **`IntersectionObserver`**（`rootMargin: '-80px 0px -80px 0px'`），性能更好
+  - 激活指示器从水平条改为**垂直线**（`w-[3px] rounded-sm`），使用 **Framer Motion `layoutId` + `layout`** 实现丝滑波浪滑动
+  - 新增 `scaleY: 0 → 1` 弹簧入场动画（`stiffness: 500, damping: 22`），激活时线条「弹出来」
+  - 所有条目显示可见灰线（`w-[1.5px]`），激活时变为 accent 色 + 加粗
+  - 激活文本 `ml-[18px] → ml-[22px]` 微移，配合弹出感
+  - 新增 `depth` 缩进（h3+ 层级增加 `0.6rem` padding）
+  - 点击标题使用 `smooth` 滚动（offset -80px）而非原生锚点跳转
+- 侧边栏布局：`sticky top-24` 优化定位
+- ActionAside：移除 `absolute bottom-0 translateY` 改为流式布局 `pt-6`，消除阅读进度下方的空白
+
+**原因：** Sitemap 缺少 lastmod 不利于 SEO；Umami 脚本无 async 可能阻塞渲染；TOC 依赖 scroll 事件性能差，参考 Shiro（https://github.com/innei/Shiro）的 IntersectionObserver + Framer Motion 方案重写，提升目录交互体验。构建通过（150 pages, 0 errors, 0 warnings）
+
+### 2026-07-19 14:18 - 文章列表改造：浮动小图 → 网格卡片布局
+
+**修改文件：**
+
+- `src/components/post/PostCard.astro`（重写）
+- `src/components/post/PostList.astro`（重写）
+
+**修改内容：**
+
+- PostCard.astro 从 `float-right size-[80px]` 浮动小缩略图 + 文字环绕 → **杂志风格网格卡片**布局：
+  - 卡片容器：`rounded-xl border border-primary/15 bg-primary hover:shadow-lg hover:border-accent/25 transition-all duration-300`
+  - 顶部封面图：`aspect-[16/10]` 宽幅比例，`object-cover`，hover 时 `scale-105` 放大过渡
+  - 内容区 `p-5 space-y-3`：分类 Badge（`rounded-full bg-accent/10 text-accent`）、置顶图钉、标题 `line-clamp-2`、摘要 `line-clamp-3`、底部元数据（日期 + 阅读分钟）带分隔线
+- PostList.astro 从 `<ul class="-my-4">` → `<div class="grid grid-cols-1 md:grid-cols-2 gap-6">`
+- PostCardHoverOverlay.tsx（Framer Motion 悬停组件）不再被使用，文件保留未删除
+
+**原因：** 原 80px 右浮动小图在列表中过于细碎，卡片无视觉边界导致排版松散。改为网格卡片布局后图片增大 6 倍+，每篇文章拥有独立卡片容器，视觉层次清晰，移动端单列良好。构建通过（183 pages, 0 errors）
+
+### 2026-07-20 - 动态背景系统重构（极光+粒子+磁流体+光标+发光）
+
+**修改文件：**
+
+- `src/components/hero/Hero.astro`
+- `src/layouts/Layout.astro`
+- `src/layouts/MarkdownLayout.astro`
+- `src/styles/global.css`
+- `tailwind.config.ts`
+- `src/components/CategoryList.astro`
+- `src/components/TagList.astro`
+- `src/components/post/PostCard.astro`
+- `src/components/background/`（新建目录及 6 个组件）
+
+**新组件：**
+
+- `src/components/background/AuroraBackground.astro` — 纯 CSS 极光背景，以 accent 色为基调，多层 radial-gradient 缓慢流动，替换原 `.site-grid` 静态网格
+- `src/components/background/FerrofluidHero.tsx` — Canvas 2D 磁流体效果，专用于 Hero 区域，鼠标靠近时 blob 块收缩流动，移动端自动降级
+- `src/components/background/ParticlesBg.tsx` — Canvas 2D 粒子系统，用于文章页背景，粒子随鼠标排斥，粒子间有连线
+- `src/components/background/TargetCursorWrap.tsx` — GSAP 自定义光标，hover `.cursor-target` 元素时展开矩形框并加光晕
+- `src/components/background/GlowBubble.tsx` — 包装 `@codaworks/react-glow` 的边缘发光组件
+
+**修改内容：**
+
+- Hero.astro：删除随机背景图 `https://webp.mingcy.cn` 和模糊遮罩，替换为 FerrofluidHero
+- Layout.astro：删除 `.site-grid` `.site-cursor-glow` 和其 JS 追踪代码，替换为 AuroraBackground；追加 TargetCursorWrap
+- MarkdownLayout.astro：`.swup-transition-fade` 后追加 ParticlesBg，实现文章页粒子背景
+- global.css：删除 `.site-backdrop` `.site-grid` `.site-cursor-glow` 相关代码；新增 `.glow-border` 类
+- tailwind.config.ts：新增 Aurora 动画 keyframes
+- CategoryList.astro / TagList.astro：分类/标签 hover 时增加 `.glow-border` 发光效果
+- PostCard.astro：新增 `.cursor-target` class，触发自定义光标展开
+
+**新增依赖：** `gsap`（TargetCursor）、`@codaworks/react-glow`（GlowBubble）
+
+**原因：** 替换过时的随机图方案，构建杂志级动态背景系统。极光+粒子+磁流体三层叠加，配合自定义光标和边缘发光，全面提升交互质感。构建通过（0 errors）
+
+### 2026-07-22 15:40 - Apple Liquid Glass 标签云改造 & Git 同步修复
+
+**修改文件：**
+
+- `src/components/TagList.astro`
+- `src/components/post/PostCard.astro`（仅加注释）
+- `src/components/post/PostList.astro`（仅加注释）
+- `src/pages/about.astro`（仅加注释）
+- `src/pages/links/index.astro`（仅加注释）
+- `src/pages/tags/index.astro`（仅加注释）
+- `scripts/deploy.mjs`
+
+**修改内容：**
+
+- TagList.astro 从 `bg-accent/10` 彩色标签 + `glow-border` 发光悬浮 → 改为 **Apple Liquid Glass 灰度药丸标签**：`bg-secondary/40 dark:bg-secondary/30` 自适应亮/暗模式，`hover:-translate-y-[1px] hover:shadow-sm` 轻抬悬浮，计数使用 `tabular-nums`，去掉 `glow-item`/`glow-border` 依赖
+- 6 个文件头部添加 `<!-- Apple Liquid Glass: ... -->` 注释，标注设计模式来源（components.md/patterns.md 引用），便于日后回溯
+- 修复 Git 无法同步 GitHub 的问题：
+  - 远程改为 HTTPS + `http.proxy=socks5h://127.0.0.1:10808`（Git libcurl 原生支持 SOCKS5，比 SSH ProxyCommand 快 1000 倍）
+  - `scripts/deploy.mjs` 重写：移除硬编码 PAT token，用 HTTPS remote + 全局代理配置，修复 Windows 兼容性（`fs.rmSync`、安全日期格式）
+  - 凭据通过 `credential.helper=store` 缓存，无需每次登录
+- Apple Liquid Glass skill 已安装至 `~/.config/opencode/skills/apple-liquid-glass/`
+
+**日常同步命令：**
+
+```bash
+git add -A
+git commit -m "description"
+$env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.1:10808 -5 %h %p'; git push
+```
+
+> 使用 `GIT_PROXY_COMMAND` 而非全局 `http.proxy`，后者在大包推送时（~59MB）频繁断连。`connect.exe` 走 HTTPS 通道更稳定。已写入 `scripts/deploy.mjs`。
+
+**原因：** 标签云视觉升级（Apple 灰度规范 + 亮/暗自适应）；解决 git 同步需反复登录和大数据推送断连问题。构建通过（188 pages, 0 errors）
+
+### 2026-07-22 17:00 - 首页文章卡片改造：液态玻璃 + 左右交替布局 + 滑动光源
+
+**修改文件：**
+
+- `src/styles/global.css`
+- `src/layouts/PageLayout.astro`
+- `src/components/footer/Footer.astro`
+- `src/components/post/PostCard.astro`（重写）
+- `src/components/post/PostList.astro`
+- `src/pages/[...page].astro`
+
+**修改内容：**
+
+- global.css 新增 3 组工具类：
+  - `.card-glass` — Apple Liquid Glass 风格基底：`backdrop-filter: saturate(180%) blur(20px)` + 半透明 `bg-primary` + 双层 Apple 阴影，暗色模式自适应
+  - `.card-shine` — `::before` 伪元素斜向白色渐变（transparent→white 0.18→transparent），`background-position` 平移到 `-200%` 实现 hover 时光源扫过效果
+  - `.img-mask-right` / `.img-mask-left` — 图片朝向内容侧 `mask-image: linear-gradient` 渐变消失，仅在桌面端（`@media min-width: 640px`）生效
+- PageLayout.astro：新增 `transparentBg?: boolean` prop，首页主区域透明让 AuroraBackground 极光透过玻璃卡片折射
+- Footer.astro：添加 `bg-primary` 保底背景色
+- PostCard.astro 重写：
+  - `index` 奇偶控制左右交替布局（even → `flex-row` 图左文右，odd → `flex-row-reverse` 文左图右）
+  - 图片 `w-full sm:w-[45%] shrink-0 aspect-[3/2]`，覆盖原有 `w-48` 小图
+  - 移动端（`<sm`）垂直堆叠，图片在上、内容在下
+  - 应用 `card-glass card-shine` 玻璃材质 + 滑动光源
+  - 图片侧边应用 `img-mask-*` 实现图→文渐变过渡
+  - Apple 风格排版：`tracking-tight` 标题、`tabular-nums` 数字
+- PostList.astro：向 PostCard 传递 `index`，间距 `gap-8`→`gap-10`
+- `[...page].astro`：文章容器 `max-w-[800px]`→`max-w-[960px]`，首页传递 `transparentBg`
+
+**原因：** 用户反馈首页文章卡片样式不够精致，期望左右交替、大图大文字、液态玻璃质感。参考 blog.bsgun.cn 的左右布局 + Apple Liquid Glass 设计语言，打造带有滑动光源的玻璃卡片系统，AuroraBackground 透过玻璃折射增强质感。构建通过（188 pages, 0 errors）
+
+### 2026-07-22 19:00 - 文章卡片重构：图上文下 + 移除扫光 + 首页背景修复
+
+**修改文件：**
+
+- `src/components/post/PostCard.astro`
+- `src/styles/global.css`
+- `src/pages/[...page].astro`
+- `src/layouts/PageLayout.astro`
+
+**修改内容：**
+
+- PostCard.astro 从 `sm:flex-row/sm:flex-row-reverse` 左右分栏 → 固定 `flex-col` 图上文下排版
+  - 删除 `isEven`/`flexDir`/`maskClass` 布局变量
+  - 图片容器 `w-full sm:w-[45%]` → `w-full` 满宽去边，`aspect-[3/2]` → `aspect-[16/9]` 降低纵向高度
+  - 删除 `card-shine` class，移除 hover 扫光伪元素
+- global.css：删除 `.card-shine` 和 `.img-mask-*` 整段 CSS
+- `[...page].astro`：文章容器 `max-w-[960px]` → `max-w-[780px]` 收窄宽度
+- PageLayout.astro：首页 `<main>` 始终使用 `bg-primary`（亮色白/暗色#1c1c1e），保留 AccentColorInjector 随机色系统
+
+**原因：** 用户反馈左右分栏+扫光效果闪眼，改为图上文下+毛玻璃+轻抬悬停的 Apple 风格；首页背景跟随亮暗主题。构建通过（188 pages, 0 errors）
+
+### 2026-07-25 - 友链申请页添加一键导入模板按钮
+
+**修改文件：**
+
+- `src/pages/links/apply.astro`
+
+**修改内容：**
+
+- 在「申请格式」div 内 `<pre>` 代码块下方添加 `📥 一键导入模板` 按钮，右对齐
+- 按钮初始 `disabled`，通过 `MutationObserver` 监听 `#twikoo` 子树，等待 textarea 出现后自动启用
+- 附加 500ms 轮询兜底（最长 5s），防止 Observer 错过时机
+- 点击按钮后：将格式模板填入 textarea → dispatch `input`/`change` 事件（`bubbles: true`）→ `focus()` → 弹窗提示「✅ 模板已导入」
+- 未找到输入框时提示「未找到评论区输入框，请稍后重试」
+
+**原因：** 方便访客一键将友链申请格式填入 Twikoo 评论框，降低提交门槛。构建通过（0 errors）
+
+### 2026-07-27 - 首页卡片重构：CSS 变量化 + 柔和滑动高光 + 移动端隐藏封面
+
+**修改文件：**
+
+- `src/styles/global.css`
+- `src/components/post/PostCard.astro`
+
+**修改内容：**
+
+- 新增 CSS 自定义属性体系（`:root` + `[data-theme='dark']`）：`--card-glass-bg`、`--card-glass-border`、`--card-glass-shadow`、`--card-glass-hover-shadow`、`--card-glass-hover-translate`、`--card-glass-radius`，统一管理毛玻璃卡片配色
+- 重构 `.card-glass`：将 `overflow-hidden`、`border-radius`、`hover:translateY`、`hover:shadow` 从 Tailwind 行内类搬入 CSS，替换为 CSS 变量引用；过渡动画使用 `cubic-bezier` 精细化缓动
+- 新增 `.card-glass::after` 伪元素：`105deg` 斜向渐变，hover 时 `background-position 0.8s` 从左到右滑动，实现柔和扫过高光（亮色模式峰值 12% 白，暗色模式峰值 7% 白）；`pointer-events: none` 不遮挡交互
+- 新增 `@media (max-width: 768px)` 移动端规则：`.card-cover-mobile-hidden { display: none }` 隐藏封面图片（不删除 DOM），卡片仅展示文字内容，玻璃 hover 动效保留
+- PostCard.astro 简化：`<article>` 类名从 4 行浓缩为 `group card-glass cursor-target`；封面 `<div>` 添加 `card-cover-mobile-hidden`
+
+**原因：** 将散落在 Tailwind 行内的卡片样式收归 CSS 变量体系便于维护；添加柔和斜向扫光替代之前过于抢眼的扫光效果；移动端大图遮挡文字信息，隐藏后卡片更紧凑。构建通过（0 errors）
+
+### 2026-07-27 - 首页卡片重构：3D 液态玻璃堆叠 + 纯黑底 + 辉光边缘
+
+**修改文件：**
+
+- `src/styles/global.css`
+- `src/components/post/PostCard.astro`
+- `src/components/post/PostList.astro`
+- `src/layouts/PageLayout.astro`
+
+**修改内容：**
+
+- 纯黑底色（暗色 `#000` / 亮色 `#fff`）：新增 `--page-bg` CSS 变量，`.page-bg-home` 类用于首页 `<main>` 背景；`transparentBg` prop 真正生效
+- 暗色模式隐藏 Aurora 极光：`html[data-theme='dark'] .aurora-container { display: none }`
+- 卡片材质升级：`backdrop-filter: blur(24px)`，暗色背景透明度降至 18%，亮色 45%；细半透边框 + 双层阴影
+- 边缘辉光：`.card-glass::before` 伪元素，`inset: -3px` + `box-shadow` 使用 `--color-accent` 实现外发光，hover 时渐显
+- 3D 透视堆叠（PC ≥769px）：`.post-list` 设置 `perspective: 1000px`；奇数卡片 `rotateX(1.5deg) translateZ(4px)`，偶数 `rotateX(-1deg) translateZ(-2px)`；hover 归零 + `translateZ(30px)` 上浮
+- 滑动高光保留：`::after` 斜向渐变扫光，亮色峰值 10% 白，暗色 7% 白
+- 字号层级优化：新增 `.card-content .category-badge`、`.post-title`、`.post-summary`（opacity 0.7）、`.post-meta`（opacity 0.55）
+- 卡片间距：PostList `gap-10` → `gap-12`
+- 移动端（≤768px）：禁用 3D 透视；`card-content` padding 缩至 1rem；标题字号降为 1rem；去除 `!important` 残留
+- PostCard.astro 新增语义 class：`card-content`、`category-badge`、`post-title`、`post-summary`、`post-meta`
+
+**原因：** 用户要求暗黑 3D 液态玻璃堆叠卡片效果，纯黑底 + 厚毛玻璃 + 透视错落 + 边缘微弱辉光 + 绿色强调色（沿用随机色系统）。保留昼夜切换和全部 hover 动效。构建通过（0 errors）
+
+### 2026-07-27 - 卡片背景色修正 + 自定义 Sitemap 替代插件
+
+**修改文件：**
+
+- `src/styles/global.css`
+- `src/pages/sitemap.xml.ts`（新建）
+- `src/pages/robots.txt.ts`
+- `astro.config.js`
+
+**修改内容：**
+
+- 暗色 `--page-bg` 从 `#000` 改回 `#1c1c1e`（用户拒绝纯黑底）
+- 删除 `.card-glass::before` 边缘辉光伪元素及相关 `--card-glow-*` 变量
+- 新建 `src/pages/sitemap.xml.ts`：自定义 API 端点生成单一 `<urlset>` 格式 sitemap，覆盖首页、分页、文章、分类、标签、静态页面共 191 个 URL，含 lastmod/priority/changefreq
+- `robots.txt.ts`：引用 `/sitemap.xml` 替代 `sitemap-index.xml`
+- `astro.config.js`：移除 `@astrojs/sitemap` 集成
+
+**原因：** `@astrojs/sitemap` v3 输出 `sitemap-index.xml`（sitemap 索引，不直接展示内容），浏览器打开无实际 URL。自定义端点的单一 sitemap.xml 可直接浏览全部收录页面。构建通过（193 pages, 0 errors）
+
+### 2026-08-09 - EdgeOne AI-Chat-Assistant 接入：全站浮窗 + AI 咨询卡片 + 构建期 AI 摘要
+
+**修改文件：**
+
+- `src/layouts/Layout.astro`（全站 embed.js 注入）
+- `src/components/ai/AiConsultCard.astro`（新建，AI 咨询入口卡片）
+- `src/components/ai/AiSummaryCard.astro`（新建，文章页 AI 摘要卡片）
+- `src/pages/[...page].astro`（首页挂载 AiConsultCard）
+- `src/pages/[year]/[month]/[day]/[slug].astro`（文章页挂载 AiConsultCard + AiSummaryCard）
+- `scripts/gen-ai-summaries.mjs`（新建，构建期 AI 摘要生成脚本）
+- `src/data/ai-summaries.json`（新建，82 篇 AI 摘要数据）
+- `package.json`（build 链前置摘要生成）
+
+**修改内容：**
+
+- 接入已部署在 EdgeOne 的官方开源项目 AI-Chat-Assistant（`https://github.com/TencentEdgeOne/AI-Chat-Assistant`，MIT），自定义域名 `ai.mingcy.cn`，实现「顶部 AI 摘要 + 顶部 AI 咨询」：
+- **路线 A 全站浮窗**：`Layout.astro` 底部注入 `<script is:inline src="https://ai.mingcy.cn/embed.js" data-color="#10b981" data-position="bottom-right">`，全站右下角出现 AI 聊天气泡；embed.js 自动提取 `article` 正文（≤6000 字符）经 postMessage 发给同源 iframe widget，AI 可理解当前页面内容；与 Swup 兼容（embed.js 自带 1s 轮询检测 URL 变化）
+- **路线 B AI 咨询卡片**：新建 `AiConsultCard.astro`（glass-card 风格），首页主列表顶部 + 文章页正文区顶部渲染；「开始咨询」按钮展开内嵌 `<iframe src="https://ai.mingcy.cn/widget">`（widget 页面与 /chat 同源、无跨域），点击时 postMessage 注入页面上下文；脚本用 `MutationObserver` + `swup:contentReplaced` 事件重新绑定，兼容 Swup 页面替换后卡片不失效
+- **路线 C 构建期 AI 摘要**：新建 `scripts/gen-ai-summaries.mjs`——遍历 `src/content/posts/*/index.md` 解析 frontmatter + 正文（去代码块，截 3000 字符），POST `https://ai.mingcy.cn/chat`（SSE 流式）请求 2-3 句中文摘要，解析 `data:` 增量拼接；**429 限流处理**：会话并发限制（Recognized "Conversation concurrency limit reached"）→ 共享同一 `makers-conversation-id` + 并发默认 2 + 指数退避重试（最多 4 次）；输出 `src/data/ai-summaries.json`（`{slug: {summary, from, updatedAt}}`），AI 失败自动用文章 frontmatter summary 兜底（`from:'fallback'`），支持 `--force` / `--retry-fallback` 参数
+- 82 篇文章全部生成真实 AI 摘要（`from:'ai'`、0 fallback）；文章页 header 内、`Outdate` 下方渲染 `AiSummaryCard.astro`（「AI 摘要」标题 + 「✨ AI 生成」/「文章简介」徽标）
+- `package.json` build 链：`astro check && node scripts/gen-ai-summaries.mjs && astro build && pagefind --site dist`（生成摘要失败仅兜底不阻断构建）
+- 已验证：`/embed.js` 200（6175B）、`/api/config` 正常、`/chat` SSE 中文输出正常
+
+**原因：** 用户希望把 EdgeOne 部署的 AI-Chat-Assistant 装入博客，在顶部提供 AI 摘要与 AI 咨询。官方 embed.js 仅提供右下角浮窗，无法直接做顶部摘要/咨询；故采用「embed.js 浮窗（零配置）+ 自建 widget 内嵌卡片（同源调用）+ 构建期离线调 /chat 生成摘要（静态站零延迟）」的三层方案。构建通过（196 pages, 0 errors, Pagefind 85 pages/10255 词）。
+
+**⚠️ 待用户侧操作：** `ai.mingcy.cn` 的 HTTPS 证书当前仍是腾讯 CDN 泛域名证书（`*.cdn.myqcloud.com`，curl 忽略证书可访问但浏览器会告警），需在 EdgeOne 控制台给该自定义域名签发免费证书后浮窗/咨询/摘要才能在线生效。日常更新：`pnpm build` 自动刷新 AI 摘要。
+
+### 2026-08-09 - AI 助手重构：移除咨询卡与 embed.js、左下液态玻璃浮球、修复切换卡顿
+
+**修改文件：**
+
+- `src/components/ai/AiConsultCard.astro`（**删除**）
+- `src/components/ai/AiAssistant.tsx`（新建，左下自浮球组件）
+- `src/layouts/Layout.astro`（移除官方 embed.js；挂载 `<AiAssistant client:only="react" />`）
+- `src/pages/[...page].astro`（移除 AiConsultCard 引用）
+- `src/pages/[year]/[month]/[day]/[slug].astro`（移除 AiConsultCard 引用）
+- `src/styles/global.css`（新增 `.ai-assistant` / `.ai-bubble` / `.ai-window` 液态玻璃样式）
+
+**修改内容：**
+
+- **性能修复（网页预览切页卡顿 / CPU 占用高）**：
+  - 删除 `AiConsultCard.astro`——其全局 `MutationObserver(observe(document.body, { childList, subtree }))` 在 Swup 切页时触发 scan 回调风暴，是切页卡顿主因；且其监听事件名 `swup:contentReplaced` 与项目实际 `swup:content:replace` 不一致，scan 完全依赖 MutationObserver 进一步放大开销
+  - 移除 `Layout.astro` 中官方 `embed.js` 脚本——其无条件 `appendChild(<iframe src=".../widget">)` 每页后台加载完整 Next.js React 对话应用（即使浮球未打开），另有 1s `setInterval` 常驻轮询 URL，是 CPU 占用主因
+  - 重构后**切页零额外开销**：浮球由 React `client:only` 在客户端创建，Swup 只替换 `main`、不重建 body 级浮球
+- **自建左下浮球 `AiAssistant.tsx`**（React + Framer Motion，挂在 `Layout.astro` body 末尾）：
+  - 气泡固定左下（`fixed bottom-6 left-4 z-50`），点击展开对话窗（`AnimatePresence` 弹簧动画）
+  - **iframe 懒加载**：`<iframe src="https://ai.mingcy.cn/widget">` 仅首次点击展开时才挂载，未展开绝不加载 widget 资源；关闭后保留复用
+  - 展开时 `postMessage` 注入当前页面上下文（`article`/`main`/`.post-content`，≤6000 字符，与官方 embed.js 协议一致）；监听 `swup:content:replace` 在切页后自动刷新上下文
+- **Apple 液态玻璃样式**（`global.css`）：`.ai-bubble` / `.ai-window` 用 `backdrop-filter: saturate(180%) blur(24px)` + accent 渐变半透明底 + 双层 Apple 阴影 + `--color-accent` 微光边框；`html[data-theme='dark']` 覆盖加深底色；**颜色全部走 CSS 变量**（`--color-accent` / `--color-text-primary` 等），**自动跟随主题随机色**（AccentColorInjector 注入 light/dark 双值）与明暗模式；移动端（≤480px）窗口占满左右 16px
+- iframe 内部对话区深色：需在 EdgeOne 侧 `chat-panel.tsx` 支持 `prefers-color-scheme`，属待办（见下）
+
+**原因：** 用户反馈网页切页明显卡顿、CPU 占用大，且要求去掉顶部 AI 咨询卡、AI 助手改左下角 + 液态玻璃 + 明暗/随机色适配。官方 embed.js 无法自定义样式且无条件加载 widget。重构后：无全局 MutationObserver、无 embed.js 轮询、iframe 按需加载，根治卡顿；外观完全主题化。构建通过（195 html, 0 errors, 0 warnings, Pagefind 85 pages）。
+
+**⚠️ 用户待办（EdgeOne 项目，本仓库只读边界外）：** AI 对话窗内 iframe（`ai.mingcy.cn/widget`）的深色模式需修改 `AI-Chat-Assistant` 项目 `app/components/chat-panel.tsx`：读取 `window.matchMedia('(prefers-color-scheme: dark)')` + localStorage 主题或跟随父页面 `postMessage` 主题，使 iframe 内对话区与博客明暗一致。
+
+### 2026-08-09 21:57 - AI 对话浮球下线 & 卡片模糊减弱 + 移除扫光
+
+**修改文件：**
+
+- `src/layouts/Layout.astro`（移除 AiAssistant import 与 body 挂载）
+- `src/components/ai/AiAssistant.tsx`（**删除**，左下 AI 对话浮球组件）
+- `src/styles/global.css`（移除 `.ai-assistant` / `.ai-bubble` / `.ai-window` 样式段；删除 `.card-glass::after` 扫光层；`blur(24px)` → `blur(12px)`）
+
+**保留不动：**
+
+- `src/components/ai/AiSummaryCard.astro` + `src/data/ai-summaries.json`（文章页顶部 AI 摘要卡完整保留）
+- `AuroraBackground` 极光、`HeadGradient` 顶部渐变、`ParticlesBg` 粒子、3D 透视堆叠、hover 泛光阴影——均为用户未点名的项，保持原样
+
+**修改内容：**
+
+- **移除左下 AI 对话浮球**：用户反馈浮球拖慢网页速度（每次 Swup 切页都会扫描整页 DOM、截取上下文并 postMessage，动画期间叠加卡顿；按钮常驻左下干扰阅读）。删除 `Layout.astro` 中 `<AiAssistant client:only="react" />` 及其 import，删除组件文件与 `global.css` 中 `.ai-assistant` `.ai-bubble` `.ai-window` 整段样式（约 298–377 行）。**只保留 AI 摘要这一个 AI 功能**
+- **卡片模糊减弱**：用户反馈液态玻璃卡片「模糊特效」干扰视野。`.card-glass` / `.sidebar-card` 的 `backdrop-filter: saturate(180%) blur(24px)` → `blur(12px)`（亮/暗模式共用）
+- **移除卡片扫光层**：用户确认光干扰即 `::after` 斜向扫光伪元素（hover 时白色光带滑过）。整体删除 `.card-glass::after`、`.card-glass:hover::after`、暗色模式覆盖三段样式（原 402–435 行）
+
+**原因：** 用户要求「只保留文章 AI 摘要，去掉左下 AI 对话（拖慢网页速度）；液体玻璃卡片的模糊与扫光特效干扰视野」。经排查确认干扰源为 `.card-glass` 的 `backdrop-filter: blur(24px)` 与 `::after` 扫光层，按用户选择减弱到 `blur(12px)` 并删除扫光层。**注意：** 本次改动与「2026-08-09 - AI 助手重构」记录互为因果——该次引入的浮球在本次下线。
+
+### 2026-08-13 - React hydration 错误修复 & 未使用组件清理
+
+**修改文件：**
+
+- `src/components/sidebar/GreetingClock.tsx`（重写）
+- `src/components/background/FerrofluidHero.tsx`（**删除**，未使用）
+- `src/components/background/TargetCursorWrap.tsx`（**删除**，未使用）
+- `src/components/background/GlowBubble.tsx`（**删除**，未使用）
+- `src/components/post/PostCardHoverOverlay.tsx`（**删除**，未使用）
+- `src/components/comment/Waline.tsx`（**删除**，未使用）
+- `package.json` / `pnpm-lock.yaml`（移除孤儿依赖 `gsap`、`@codaworks/react-glow`）
+
+**背景：** 生产环境浏览器控制台持续报 `Minified React error #418 / #423 / #425`，堆栈指向 MessagePort，一度怀疑第三方 `gyoza.lxchapu.com` 脚本与 React 冲突。**排查结论（与猜测不符）：**
+
+- **错误码真实含义**（从本地 react-dom 18.2.0 源码验证，全部为 hydration/Suspense 家族，非 createRoot/Context 问题）：
+  - `#418`：Hydration failed because the initial UI does not match what was rendered on the server（SSR 与客户端首帧渲染不一致）
+  - `#423`：There was an error while hydrating this Suspense boundary（水合失败的伴随错误）
+  - `#425`：This Suspense boundary received an update before it finished hydrating（水合完成前收到更新）
+- **堆栈指向 MessagePort 是 React 18 Scheduler 的正常机制**（MessageChannel 调度），并非第三方脚本
+- **`gyoza.lxchapu.com` 不是脚本**：全项目仅 `PrintVersion.astro` 的 `console.log` 横幅字符串引用该域名，无任何脚本注入
+- **项目无手动 createRoot/hydrateRoot**（仅 `RootPortal.tsx` 用 `createPortal`），所有 React 挂载由 Astro island（`client:*`）托管，不存在重复挂载
+- **Context 结构已正确**：`Provider` 已在 PageLayout/MarkdownLayout 全局挂载（`client:only`），Drawer/modal 的 Context 均在各自组件内就近提供
+
+**修复内容：**
+
+- **`GreetingClock.tsx` 重写（#418 根因）**：原实现 `useState(() => new Date())` 在 SSR 与客户端 hydration 各取一次当前时间，输出必然不同 → 每次加载必现 #418 → 连锁 #423/#425。改为初始 state 为 `null`，SSR/首帧渲染固定占位符（`--:--:--` / `----年-月-日 · 星期-`），时间仅在 `useEffect` mount 后读取并每秒更新，两端渲染一致
+- **删除 5 个零引用组件**（引用检查 0 处）：`FerrofluidHero`（Hero 已重写不再使用）、`TargetCursorWrap`（Layout 已移除挂载）、`GlowBubble`（TagList 已移除 glow 依赖）、`PostCardHoverOverlay`（PostCard 已改为网格卡片）、`Waline`（评论实际用 Twikoo）
+- **移除孤儿依赖**：`gsap`、`@codaworks/react-glow`（对应组件删除后无任何引用）
+
+**原因：** 消除生产环境必现的 React hydration 报错（#418/#423/#425），并清理未使用组件与孤儿依赖（gzip 体积减小、构建产物瘦身）。构建通过（196 pages, 0 errors, Pagefind 85 pages）。**验证方式：** `pnpm dev` 本地控制台无红色报错；`pnpm build` + `pnpm preview` 生产产物无 Minified React 错误；dist 首页 GreetingClock SSR 输出为 `--:--:--` 占位符（此前为具体时间）。
+
+### 2026-08-13 19:00 - Swup 切页 React island 资源泄漏修复 & 性能优化
+
+**修改文件：**
+
+- `src/hooks/useCleanupOnPageLeave.ts`（新建，统一切页清理工具 hook）
+- `src/layouts/Layout.astro`（body 末尾注入 `mcy:island-cleanup` 切页清理事件）
+- `src/components/sidebar/GreetingClock.tsx`（setInterval 泄漏修复）
+- `src/components/TimelineProgress.tsx`（setInterval 泄漏修复）
+- `src/components/post/PostToc.tsx`（IntersectionObserver 泄漏修复）
+- `src/components/background/ParticlesBg.tsx`（rAF 循环 + resize/mousemove/mouseleave 监听器泄漏修复）
+- `src/components/Flashlight.tsx`（mousemove 监听泄漏修复 + **修复 hooks 规则违规**：`if (isMobile) return null` 提前于 `useLayoutEffect` 调用，已把全部 hooks 提升到条件 return 之前）
+
+**背景：** 用户持续反馈生产环境 `#423`（createRoot 重复挂载）/`#425`（useContext 无 Provider）报错且切页卡顿。经排查：**错误码释义仍不成立**（#423/#425 均为 hydration 家族，已在上一轮修根因 #418 后随连锁消除；项目无手动 createRoot；Context 均就近提供）。但**"路由切换旧 React 实例未销毁"描述指向一个真实问题**：`@swup/astro` 仅派发 `astro:before-swap`/`astro:page-load` 事件，**对 main 容器内被替换的 astro-island 无任何 React unmount 处理**——Swup 切页时 React 组件 DOM 被整体替换但组件不卸载，`useEffect` cleanup 不执行，导致 `setInterval`（GreetingClock/TimelineProgress 每秒）、rAF 循环（ParticlesBg）、IntersectionObserver（PostToc）、事件监听器（Flashlight/ParticlesBg）持续运行，**切页越用越卡、内存上涨**。这是卡顿的真实根因（与 gyoza 无关——`gyoza.lxchapu.com` 仅是 `PrintVersion.astro` 的 console.log 字符串，无任何脚本）。
+
+**修复内容：**
+
+- 新建 `useCleanupOnPageLeave(cleanup)` hook：监听 Layout 注入的 `mcy:island-cleanup` 事件，在 Swup 替换 main 内容**之前**主动执行清理函数并自我解绑；组件正常卸载时仍由 React `useEffect` cleanup 兜底（与清理函数共用同一 `cleanupRef`）
+- `Layout.astro` body 末尾注入 `is:inline` 脚本：监听 `swup:content:replace`（Swup 内容替换前）→ `document.dispatchEvent(new CustomEvent('mcy:island-cleanup'))`
+- 5 个资源型组件接入：定时器/动画帧/观察器/监听器统一在切页前释放
+
+**原因：** 解决 Swup SPA 路由切换下 React island 资源泄漏导致的页面卡顿与内存增长（用户"路由切换旧实例未销毁"诉求的真实落地——React 无公开 unmount API，用切页事件主动清理是等价且安全的方案）。构建通过（196 pages, 0 errors, Pagefind 85 pages）。**验证方式：** `pnpm dev` 控制台无报错；多次切换文章页→首页后 Performance 面板监听器数量不再增长、CPU 占用回落；`pnpm build` 产物中 `dist/index.html` 含 `mcy:island-cleanup` 脚本、GreetingClock SSR 仍为 `--:--:--` 占位符。
+
+### 2026-08-15 - 首页滚动卡顿修复 & 每页文章数改 5
+
+**修改文件：**
+
+- `src/config.json`（`posts.perPage` 10 → 5）
+- `src/styles/global.css`（移除 3D 透视堆叠、新增滚动降级规则）
+- `src/layouts/Layout.astro`（注入滚动降级脚本）
+
+**背景：** 用户反馈首页滑动文章时视觉上明显卡顿（加载不卡），自认为与 hover 放大效果不丝滑有关。经排查，卡顿根源是**三处叠加**：
+
+- **`.card-glass` 的 `backdrop-filter: saturate(180%) blur(12px)`（主因）**：浏览器滚动时需为每张卡片每帧重算背景模糊（页面内容在滚动，模糊采样区域持续变化），每页 10 张卡片 = 10 个持续重绘的合成层；hover 放大动画（`scale-105`）每一帧也叠加模糊重算 → 掉帧、不丝滑。用户感知的"放大不丝滑"正是此瓶颈（transform 本身 GPU 加速不卡）
+- **`.post-list` 的 3D 透视堆叠**（`perspective: 1000px` + 奇数/偶数卡片 `rotateX(1.5deg) translateZ(4px)` / `rotateX(-1deg) translateZ(-2px)`，2026-07-27 引入）：滚动时强制重算 3D 投影，且与 hover 的 `translateY` 冲突造成突变
+- **perPage=10 卡片过多**：放大模糊重算基数
+
+**修改内容：**
+
+- `config.json`：`perPage` 10 → 5（首页每页 5 篇，直接减半模糊重算元素；总页面数 196 → 204）
+- `global.css`：
+  - **删除 3D Perspective Stacking 整块**（`@media (min-width: 769px)` 内的 `.post-list perspective` 与 `.card-glass:nth-child(odd/even)` 规则），hover 统一走主规则 `translateY(-6px)`，消除透视突变
+  - 新增滚动降级：`body.is-scrolling .card-glass/.sidebar-card/.cloud-badge { backdrop-filter: none }`——滚动期间毛玻璃退化为半透明纯色（视觉接近、零模糊重算），滚动停止 120ms 恢复玻璃效果
+- `Layout.astro`：注入 `is:inline` 滚动监听（rAF 节流 + 120ms 停止计时器），滚动中给 `body` 加 `is-scrolling` class
+
+**原因：** 保留 Apple Liquid Glass 观感的同时根治滚动卡顿：静态页玻璃效果不变，滚动时临时降级；移除与 hover 冲突的 3D 透视使放大过渡丝滑；每页 5 篇减少元素。构建通过（204 pages, 0 errors, Pagefind 85 pages）。**验证方式：** `pnpm dev` / `pnpm build && pnpm preview` 首页滚动明显流畅；hover 放大动画无掉帧；DevTools Performance 录制滚动帧率（修复前滚动期间 backdrop-filter 持续重绘，修复后滚动中卡片为纯色无模糊重算）。
+
+### 2026-08-16 - 浏览量数据源迁移：Twikoo COUNTER_GET → Umami metrics(type=path) & Vercel Analytics 接入
+
+**背景：** 用户反馈 Twikoo 浏览量数据不准（该后端为逐次读取自增 + bucket 聚合模型，多篇文章可能共享计数 doc，见 2026-08-16 前两条修复记录），要求停用 Twikoo、改用 Umami 统计作为文章阅读量；同日还要求接入 Vercel Analytics。
+
+**Umami 分享 API 关键机制（花了一整轮验证，重要）：**
+
+- **认证不用 Authorization 头**：分享页数据端点要求 **`x-umami-share-token: <JWT>` + `x-umami-share-context: 1`** 两个请求头（先前用 Authorization 导致 401，是踩坑点）
+- **令牌获取**：`GET https://um.mingcy.cn/api/share/{shareId}` 完全公开（`ACAO:*`），返回 `{ shareId, shareType, websiteId, token(JWT), parameters }`；当前分享 `RfHfOK3ospywZsFv` 为 `shareType:1`（基础总览版）
+- **CORS 全开放**：数据端点均 `Access-Control-Allow-Origin: *`，且 OPTIONS 预检返回 `Access-Control-Allow-Headers: *`、`Allow-Methods` 含 GET——浏览器可纯前端跨域 fetch 自 `mingcy.cn` → `um.mingcy.cn`，**无需服务端代理**
+- **shareType=1 限制**：只放行聚合维度端点；`metrics?type=page` 返回 400、`pageviews?url=`/`stats?url=` 过滤参数被忽略（全站数据照返）。**v3 把 metric 类型 `url` 改名为 `path`**——用 `metrics?type=path&startAt=0&endAt={now}&limit=2000` 一次取回全站 **827 个页面路径**的累计浏览量（`[{x:"/path", y:N}, ...]`）
+- **`startAt=0` 即全时段累计**（0/1/1000000000 结果相同），无需先调 `daterange` 中间跳
+- 单篇文章 URL 可能带/不带尾斜杠（旧记录 `/2024/09/07/ode/`、新 `/2026/08/08/new-work`），匹配须归一化去尾部斜杠
+
+**修改文件：**
+
+- `src/components/post/ReadCount.astro`（**重写**，Twikoo → Umami）
+- `src/components/footer/SiteVisitors.astro`（**新建**，Footer 全站累计访客数）
+- `src/components/footer/Footer.astro`（在第 37-39 行 RunningDays 行追加 `<SiteVisitors />`）
+- `src/layouts/Layout.astro`（body 注入 `<Analytics />`）
+- `package.json` / `pnpm-lock.yaml`（新增依赖 `@vercel/analytics@2.0.1`）
+
+**修改内容：**
+
+- **`ReadCount.astro` 重写**：对外接口不变（`postPath` / `postTitle?` / `class`），数据源与逻辑整体切换：
+  - 请求链：`GET /api/share/{shareId}`（公开元数据）→ 带 `x-umami-share-token` / `x-umami-share-context` 调 `GET /api/websites/{wd}/metrics?type=path&startAt=0&endAt={now}&limit=2000`
+  - 一次取回全站 path→views map，当前页面所有 `.read-count[data-path]` 本地匹配显示（千分位格式化）
+  - **归一化去尾斜杠**匹配；**未匹配到 path 的文章显示 `--`**（非 0，避免误导访问数为 0）
+  - **sessionStorage 按天缓存** `{day, map}`：当天首次真请求，Swup 切页/刷新零网络开销（重写后样式/行为：幂等守卫、DOMContentLoaded/rAF 延迟、`swup:content:replaced` / `astro:page-load` / `popstate` 重拉、失败显示 `--` 均保留）
+  - **纯读取、零自增副作用**（Umami metrics 无写入）；初始化守卫 `window.__umamiReadCountInit`（区别于旧 Twikoo 守卫，防热替换后双执行）
+- **`SiteVisitors.astro`（新建）**：Footer 展示「已经有 N 游客访问过本站」，同款三步（share 元数据 → ~~daterange~~ → stats 全站 visitors，`startAt=daterange.startDate`），sessionStorage 当天缓存，失败回退历史缓存，再失败 `--`
+- **`Layout.astro`**：`import Analytics from '@vercel/analytics/astro'`，`<SpeedInsights />` 后追加 `<Analytics />`（`dist` 产物验证 `hoisted.*.js` 内含 vercel analytics 代码）
+- package.json + `@vercel/analytics@2.0.1`（peer dep 有 WARN 但兼容 Astro 4）
+
+**保留不动：** `Comments.astro` / `Twikoo.astro`（评论模块），Umami 双脚本（`um.mingcy.cn` + `cloud.umami.is`）、SpeedInsights、config.json 未改。
+
+**⚠️ 注意（Twikoo 数据清理）：** 前端已彻底停止调用 `COUNTER_GET`，浏览量不再自增；但 Twikoo 云端历史计数数据在 `twikoo.mingcy.cn` 后端数据库（本项目只读边界外），如需清零需用户自行到 Twikoo 后台操作。Umami 侧全站 path 数据（`metrics?type=path`）约 827 条、每天随访问变化，无需干预。
+
+**原因：** Twikoo 计数模型（读取自增 + bucket 聚合共享 doc）导致阅读量不准且每次刷新上涨；Umami 真实 PV 统计更符合阅读量语义，且公开分享 API 无鉴权跨域可用。Vercel Analytics 为用户要求接入的分析（与 Umami 并行）。构建通过（204 pages, 0 errors, Pagefind 85 pages）。
+
+### 2026-08-16 - Vercel Analytics 接入（Web Analytics）
+
+**修改文件：** `src/layouts/Layout.astro`、`package.json` / `pnpm-lock.yaml`
+
+**修改内容：** 安装 `@vercel/analytics@2.0.1` 并在基础布局 body 追加 `import Analytics from '@vercel/analytics/astro'` + `<Analytics />`（紧邻既有 `<SpeedInsights />`）。
+
+**原因：** 用户要求为站点接入 Vercel Web Analytics。构建通过（204 pages, 0 errors）；dist 产物 `hoisted.*.js` 含 vercel analytics 代码。
+
+### 2026-08-16 - Astro check 4 个警告清理（ts(6133) / ts(80006)）
+
+**背景：** Vercel 构建日志显示 `astro check` 有 4 个警告，用户要求清零。
+
+**警告清单与根因：**
+
+- `src/components/background/AuroraBackground.astro:7` **ts(6133)** `className` 声明未读取：模板用 `class="...{className}"` 字符串内联插值，TS 不计入读取 → 改用 `class:list={[...base, className]}`
+- `src/components/footer/SiteVisitors.astro:63/80` **ts(80006)**「可转为 async 函数」：`getJson` 与 `load()` 用 `.then(function(){...})` 链式回调 → 改 `async/await` + `try/catch`
+- `src/components/post/ReadCount.astro:111` **ts(80006)** 同上：`getJson` fetch 链 → `async/await`
+
+**修改文件：**
+
+- `src/components/background/AuroraBackground.astro`（`class:list`）
+- `src/components/footer/SiteVisitors.astro`（`getJson` + `load()` 改写 async/await）
+- `src/components/post/ReadCount.astro`（`getJson` + `load()` 改写 async/await）
+
+**行为验证：** 逻辑等价（try/catch 替代 .catch，结果一致）；`pnpm astro check` 0 errors / **0 warnings**；`pnpm build` 通过（204 pages, 0 errors, Pagefind 85 pages）。
+
+**性能排查（未改动）：** 用户提到「文件太大导致缓存加载慢」。实测 dist 产物：index.html 平均仅 ~38 KB（内联 is:inline 脚本均为小片段）；真正的体积大头是 **Pagefind 三个 bundle**（`pagefind-component-ui.js` 171KB + `pagefind-ui.js` 117KB + `pagefind.js` 44KB ≈ 330KB）与主入口 `index.*.js`（131KB）。已向用户提议 Pagefind 按需化（打开搜索时才加载），但用户明确表示**暂不改 Pagefind**，本次仅清理警告收尾。
+
+### 2026-08-17 - Twikoo AI 自动评论回复补丁（docs/ai-comment-reply/，仓库只读边界外交付）
+
+**背景：** 用户希望 Twikoo 评论系统接入 AI 自动回复：游客发表评论后，由评论云函数抓取 mingcy.cn 文章正文，调用 `ai.mingcy.cn/chat`（EdgeOne AI-Chat-Assistant，SSE）生成博主语气的回复，以独立 AI 机器人身份写回评论，游客提交路径零改动。本仓库只读边界不含 Twikoo Vercel 云函数部署，故交付形式为**补丁 + 文档**（可 `git apply`）。
+
+**前期验证（只读边界外，本仓库仅存档结论）：**
+
+- `ai.mingcy.cn/chat`：POST `{message}` + 头 `makers-conversation-id`，SSE `data:{"type":"text_delta","delta":...}`→`[DONE]`；短回复 3-4s，长回复 10-40s；429 并发限流，指数退避可重试
+- `twikoo.mingcy.cn`：Vercel 上的 `twikoo-vercel@1.7.19`（MongoDB）；`COMMENT_SUBMIT` 保存评论后自调用 `/`+`{event:'POST_SUBMIT',comment}`，`isRecursion` 校验内部头 `x-twikoo-recursion===config.ADMIN_PASS`，是 AI 触发挂点
+- 文章正文：静态页 `#markdown-wrapper.markdown`（fallback `.markdown`/`article`/`main`）；URL 兼容带/不带尾斜杠
+
+**交付文件（写入本仓库）：**
+
+- `docs/ai-comment-reply/0001-twikoo-ai-reply.patch` — 完整补丁，含 3 个文件：
+  - `api/ai-reply.js`（新增 223 行）：内部头鉴权 → DB 重读评论 → 守卫（跳 isAiReply/master/isSpam/非文章页）→ pid 去重 → 线程上限 `AI_REPLY_THREAD_MAX`（防死循环）→ 抓正文（`AI_REPLY_ARTICLE_CHARS` 截断）→ 组装 PROMPT → `callAi`（SSE 解流、429 指数退避、`AI_REPLY_TIMEOUT`）→ `insertOne` AI 回复（`isAiReply=true, master=false`，独立昵称/头像）
+  - `api/index.js`：① `require('./ai-reply')` ② switch 加 `case 'AI_REPLY':` ③ `postSubmit` 末尾 `Promise.race([axiosPost 自调 /, delay(5000)])` 仅发出不等待 → **游客响应零阻塞**
+  - `vercel.json`：`functions.api/index.js.maxDuration = 60`（AI 生成 10-40s 超 Vercel 默认 10s）
+- `docs/ai-comment-reply/README.md` — 前置条件（Twikoo ≥1.7、证书有效）、应用步骤、触发流程图、环境变量参数表（`AI_REPLY_URL/BLOG_ORIGIN/NICK/MAIL/LINK/AVATAR/ARTICLE_CHARS/REPLY_CHARS/THREAD_MAX/TIMEOUT`）、注意事项
+
+**方式：** 在 `C:\Users\ADMINI~1\AppData\Local\Temp\opencode\twikoo-patch2` 临时仓库下载原版 twikoo-vercel → 应用 3 处修改 + 新增 `api/ai-reply.js` → `git commit` → `git format-patch` 导出。仓库本身除 docs 外无代码改动；CLAUDE.md 记录含「Twikoo AI 自动回复」链路全部关键技术参数，供日后在 Twikoo 侧实施时参考。
+
+### 2026-08-17 - Twikoo AI 回复落地方案 B：薄包装仓库路线 A 补丁（0002）+ twikoo-vercel 1.7.19 + 客户端 CDN 换 jsDelivr
+
+**背景：** 用户给出实际部署仓库 `https://github.com/rumian0/twikoo`，是**薄包装**结构（`api/index.js = module.exports = require('twikoo-vercel')`，`package.json` 仅依赖 `twikoo-vercel`），真正的云函数逻辑在 npm 包内。前一份 `0001` 补丁（面向全源码仓库）无法直接 apply，故按「路线 A」重新设计 wrapper 方案并交付 `0002` 补丁。版本统一定为 **1.7.19**（npm 上 `twikoo-vercel` 与客户端 `twikoo` 的 latest 均为 1.7.19；cdnjs 客户端只同步到 1.7.18，故客户端 CDN 改用 jsDelivr）。
+
+**关键事实（源码验证）：**
+
+- `twikoo-vercel@1.7.19` tarball（registry.npmjs.org/twikoo-vercel/-/twikoo-vercel-1.7.19.tgz，10KB）`main: api/index.js`，内含完整 34KB `api/index.js`；依赖 `get-user-ip` / `mongodb@^6.3.0` / `twikoo-func@1.7.19` / `uuid`
+- 事件分发：`module.exports = async (request, response)`；`event = request.body || {}`（Vercel 已解析 body）；`switch(event.event)` 含 `COMMENT_SUBMIT`/`POST_SUBMIT` 等；`POST_SUBMIT` 入口 `if (!isRecursion(request)) return FORBIDDEN`，`isRecursion = request.headers['x-twikoo-recursion'] === (config.ADMIN_PASS || 'true')`
+- `commentSubmit` 尾部 `await Promise.race([axios.post(https://${VERCEL_URL}, {event:'POST_SUBMIT', comment}, {headers:{'x-twikoo-recursion': config.ADMIN_PASS||'true'}}), delay(5000)])` —— 自调 POST_SUBMIT 仅等 5s，游客响应零阻塞
+- DB 连接：`MongoClient.connect(uri, {useNewUrlParser, useUnifiedTopology})` + `client.db(new URL(uri).pathname.substr(1))`（库名取自连接串路径）；config 存 `db.collection('config').findOne({})`（含 ADMIN_PASS）
+- 博客客户端 CDN：jsDelivr 路径**必须是 `dist/`**（`https://cdn.jsdelivr.net/npm/twikoo@1.7.19/dist/twikoo.all.min.js` 733KB，实测 200；不带 `dist/` 会 404）
+
+**交付文件（写入本仓库）：**
+
+- `docs/ai-comment-reply/0002-twikoo-ai-reply-wrapper.patch`（13.4KB，4 文件 300+/6-）— 在 `rumian0/twikoo` 1.7.12 基线干净 apply（实测 `git am --3way` 通过）：
+  - `package.json`：`twikoo-vercel` `1.7.12` → `1.7.19`
+  - `api/index.js`（wrapper 重写）：拦截内部事件 `AI_REPLY` 自处理并立即响应；其余透传 `await twikoo(request, response)`；`POST_SUBMIT` 透传完成后 fire-and-forget `Promise.race([axiosPost(AI_REPLY 自调), delay(5000)])`，自调头复用原始请求的 `x-twikoo-recursion`
+  - `api/ai-reply.js`（新增 253 行）：自连 MongoDB（独立缓存 `db`/`config`），`aiReply(event, request)` 校验 `x-twikoo-recursion` 头 → DB 重读评论 → 守卫（isAiReply/master/isSpam/非文章页）→ pid 去重 → `AI_REPLY_THREAD_MAX` 线程上限 → 抓正文（`#markdown-wrapper, .markdown, article` fallback `main`）→ PROMPT 组装 → `callAi`（SSE 解流、429 指数退避 `AI_RETRY_MAX=4`、`AI_REPLY_TIMEOUT`）→ `insertOne` AI 回复（`isAiReply=true, master=false`）
+  - `vercel.json`：`functions.api/index.js.maxDuration = 60`
+- `docs/ai-comment-reply/README.md` — 更新为路线 A 说明 + 触发流程图 + 参数表 + 博客端 CDN 升级说明
+- `src/components/comment/Twikoo.astro:9` — 客户端 CDN `cdnjs .../1.7.12/twikoo.all.min.js` → `https://cdn.jsdelivr.net/npm/twikoo@1.7.19/dist/twikoo.all.min.js`
+- `src/content/posts/astro/index.mdx:137` — 教程示例 CDN `cdnjs .../1.6.41/...` → 同上 jsDelivr 1.7.19
+
+**验证：** 补丁在干净 1.7.12 基线 `git am` 干净应用；`npm install` 后在临时目录 require wrapper（`typeof === 'function'`）+ `aiReply` 导出正常 + `twikoo-vercel` 实际版本 1.7.19；博客端 `pnpm exec astro check` 0 errors / 0 warnings / 0 hints。
+
+**坑（换行符）：** 临时仓库若以默认 `core.autocrlf=true` 克隆，git 写工作区 CRLF，`git format-patch` 导出的补丁在目标库 `git am` 会 3-way 失败（`autocrlf` 需设 `false` 保证 LF）。已按 `twikoo-patch2` 同款流程修正并重新提交。
+
+**⚠️ 用户侧待办（仓库只读边界外）：** ① 把 `0002` 补丁合入 `rumian0/twikoo` 并 `vercel deploy --prod`；② 确认 `twikoo.mingcy.cn` 部署的环境变量含 `MONGODB_URI`（Vercel 后台或 wrangler 无）、`ADMIN_PASS`（config 存 DB，通常无需额外设）；③ 等 AI_REPLY 独立实例跑完（maxDuration 60s），`ai.mingcy.cn` 证书需有效；④ 博客 `pnpm build` 后重新部署使 CDN 客户端升级生效。
+
+### 2026-08-17 - AI 自动回复功能彻底移除（用户决定弃用）
+
+**背景：** 用户反馈「这个项目不好用」，决定**弃用 Twikoo AI 自动评论回复**，要求删除全部相关实现，同时保留版本统一（前端客户端 1.7.19 ↔ 云函数 twikoo-vercel 1.7.19，面板版本不再告警）。
+
+**修改文件：**
+
+- 部署仓库 `rumian0/twikoo`（仓库只读边界外）：
+  - `api/ai-reply.js`（**删除**）
+  - `api/index.js`（**恢复纯薄包装**）：`module.exports = require('twikoo-vercel')`（撤销 wrapper 的 AI_REPLY 拦截 + POST_SUBMIT 自调触发）
+  - `vercel.json`（还原）：移除 `functions.maxDuration`，仅保留 `rewrites`
+  - `package.json`（**保留** twikoo-vercel `1.7.19`，与前端配套）
+- `docs/ai-comment-reply/`（**整目录删除**：0001.patch / 0002.patch / README.md）
+- `src/components/comment/Twikoo.astro`（**保留** jsDelivr 1.7.19，版本升级需求不变）
+- `src/content/posts/astro/index.mdx`（**保留** 1.7.19 教程示例）
+
+**原因：** AI 自动回复上线后不稳定（AI_REPLY 自调返回 200 但回复未写回、Vercel 无函数运行时日志可查、难以定位），用户评估后决定不采用该功能。本次回滚还原云函数为纯净薄包装，仅删除 AI 回复相关代码与文档，**前端版本升级（1.7.12 → 1.7.19）为独立需求予以保留**，确保版本面板一致。构建通过（205 html、Pagefind 86 pages）。
+
+### 2026-08-18 - 主题视觉重构：参考 astro-devosfera（深蓝边框卡片 + 深蓝/浅绿背景 + 弹簧切换 + 玫粉行内代码 + 科技感排版）
+
+**背景：** 用户反馈首页卡片 hover 放大卡顿、背景与行内代码不够美观、页面切换平淡、排版缺科技感。要求将参考主题 `F:\桌面\study\opencode\astro-devosfera`（localhost:4321）的视觉风格移植到本主题：**只改卡片方框样式不改排列方式**（保持纵向单列 grid）；黑→深蓝、白→浅绿；弹簧文章切换动画；行内代码玫粉色；代码块参考实例样式并**新增复制按钮**（原主题本无复制功能）；增强既有排版特效并新增一批科技感特效。用户确认：保留随机 accent（卡片高光跟随每页随机色）、移动端保留隐藏封面、新增复制按钮、增强+新增特效。
+
+**修改文件：**
+
+- `src/config.json` — 背景色：`bg.primary` 亮 `#ffffff`→`#f2f5ec`（浅绿）/ 暗 `#1c1c1e`→`#10131a`（深蓝）；`bg.secondary` 亮 `#f4f4f5`→`#e9eddb` / 暗 `#27272a`→`#1a2131`；`border.primary` 亮 `#e4e4e7`→`#d5dcc6` / 暗 `#3f3f46`→`#2e3b59`（蓝色系）；`text` 微调
+- `src/components/head/AccentColorInjector.astro` — 亮色根背景混合基线 `rgb(250,250,250)` → `rgb(242,245,236)`（浅绿底）
+- `src/styles/global.css` — 新增 `--post-card-border`（亮 `rgba(48,92,220,.45)` / 暗 `rgba(78,134,255,.45)` 深蓝边框）；`.post-list .card-glass` 专属样式（`rgb(var(--color-bg-primary)/.55)` 半透明底 + `blur(6px)` + 深蓝边框 + hover 上浮 4px + 蓝边高亮）；`.card-glow-effect` 鼠标跟随径向高光（`--mouse-x/--mouse-y` 定位、`rgb(var(--color-accent)/.16)` 随机强调色）；`.card-press` 点击弹簧弹出（`scale(1.03)` + overshoot 曲线）；`--page-bg` 亮 `#f2f5ec` / 暗 `#10131a`
+- `src/components/post/PostCard.astro` — 首个子元素加高光层 `<div class="card-glow-effect">`；`<a>` 加 `relative z-10`（内容盖过高光）；封面图 hover 缩放 `scale-105`→`scale-[1.03]`（解决大缩放卡顿）
+- `src/components/post/PostList.astro` — 新增脚本：document 委托 `mousemove`（rAF 节流、`closest('.post-list .card-glass')`、注入 `--mouse-x/--mouse-y`）+ 点击加 `.card-press`；`window.__postListGlowBound` 守卫防重复注册；TS 类型安全（`as HTMLElement`、`Record<string,boolean>`）
+- `src/styles/swup.css` — 重写：进入用弹簧 `cubic-bezier(0.34,1.56,0.64,1)`（scale 0.965→1 + 淡入 + 去模糊 0.55s）；离开 0.3s 淡出+缩小+模糊（低于 Swup 4.9.2 默认超时，Swup 按计算 duration 等待，已验证 timeout:0 默认）；`prefers-reduced-motion` 降级
+- `src/styles/shiki.css` — `.shiki` 背景改 `var(--shiki-light-bg)` / 暗 `var(--shiki-dark-bg)`（Shiki `defaultColor:false` 内联变量在 pre 上）
+- `src/styles/markdown.css` — ①行内代码玫粉：亮 `#d63384` 深玫粉底 10% / 暗 `#f472b6` 浅玫粉底 16% + 细边框；②代码块重做：`.code-block` 仅相对定位，`pre` 圆角边框 + Shiki 主题背景，`.lang-tag` 与 `.copy-code` 浮动药丸（`-top-0.8rem` 左右各一，bg-secondary + 边框 + hover accent 辉光）；③科技感增强：`c-*` 彩色文字霓虹 text-shadow、`rainbow` 加 drop-shadow 辉光、`label` 悬停霓虹上浮、`kbd` 辉光悬停变 accent、`blockquote` 左侧呼吸光动画（quote-glow）；④新增特效类：`.neon`（青/粉/蓝/绿霓虹 + 微闪烁）、`.glitch`（`data-text` 双层错位故障，青/粉通道）、`.typewriter`（accent 光标闪烁）、`.scanline`（CRT 扫描线滑动）、`.gradient-text`（accent→青→紫流动渐变 + 辉光）；`prefers-reduced-motion` 统一降级
+- `src/plugins/rehypeCodeBlock.js` — 代码块内注入 `<button class="copy-code" type="button">复制</button>`（md/mdx 双管道生效）
+- `src/layouts/Layout.astro` — 新增 `is:inline` 委托点击脚本：`closest('.copy-code')` → 取同块 `pre.innerText` → `navigator.clipboard.writeText` → 「已复制 ✓」800ms 还原（Swup 切页后依然生效，document 级委托）
+- `src/pages/links/fcircle.astro` — 暗色硬编码 `#1c1c1e` → `#10131a`（3 处）
+- `src/content/posts/remark/index.md` — 新增「科技感文字特效」章节：`.neon/.glitch/.typewriter/.scanline/.gradient-text` 用法示例 + 既有特效增强说明
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete（130.52s）；dist 产物核验：首页含 `card-glow-effect`、CSS 含 `.post-list .card-glass`/`.card-press`/`.neon`/`.glitch`/`.scanline`/`.typewriter`/`.gradient-text`/玫粉 `#d63384`/Shiki 背景/弹簧 `cubic-bezier(.34,1.56,.64,1)`/`quote-glow`，remark 页含 `copy-code` 按钮 + `lang-tag`，Layout 内联复制脚本在每页 HTML。
+
+**注意：** ①卡片深蓝边框为固定色，高光/辉光用随机 accent；②`card-press` 类由 JS 运行时添加（HTML 静态无引用属正常）；③MDX 文章无 Shiki 高亮（`extendPlugins:false` 未配 rehypeCodeHighlight），pre 背景走 fallback 色；④复制按钮依赖安全上下文（https/localhost），生产 mingcy.cn 为 https 可用。
+
+### 2026-08-18 - 随机强调色修复：注入器改 is:inline 内联脚本（脱离共享 bundle）
+
+**背景：** 用户反馈主题视觉重构后「随机色消失、刷新后颜色完全不变」（真 bug）。排查过程：config.json accent 数组完好（10 组）、`.text-accent/.bg-accent` 类正常生成、注入器逻辑 node 实测无异常、首页 bundle `hoisted.DvEci2uC.js` 确实静态 import 注入器。最终用 node vm 模拟浏览器环境加载完整模块链定位根因：
+
+- **根因（注入器被"连坐"）**：AccentColorInjector 原为打包脚本，与 `@vercel/speed-insights`、`@vercel/analytics`、PrintVersion、ThemeLoader 合并进同一模块 `hoisted.BrM3nOr8.js`；该模块在**模块作用域**执行 `customElements.define("vercel-speed-insights"/"vercel-analytics", ...)`（vm 实测在此抛错）。该共享模块任一环节出错（重复定义、customElements 环境问题等）都会使**整个模块失效**，模块内的注入器随之不执行 → `--color-accent` 永不注入 → 随机色全消失、刷新不变。
+
+**修改文件：**
+
+- `src/components/head/AccentColorInjector.astro`（**重写**）：打包脚本 → `is:inline` + `define:vars` 内联脚本
+  - `define:vars` 注入 `accentList / bgPrimary / bgSecondary / textPrimary / textSecondary / borderPrimary`（构建期序列化 config.json）
+  - **零依赖纯原生 JS**：自实现 `hexToRgb`（parseInt 位运算）与 `mixRgb`（RGB 线性插值，node 实测与原 `chroma.mix(...,'rgb')` 结果逐位一致：如亮色根 `242 237 228`、暗色根 `6 13 35`），**chroma-js 移出运行时**（旧 42.85KB hoisted chunk 消失，站点 JS 更轻）
+  - 行为不变：`Math.random()` 每页随机选 accent、`html{}`/`[data-theme='dark']{}` 双组 CSS 变量、`swup:content:replace` 切页重新注入
+  - 执行时机更早：HTML 解析期同步执行（模块脚本是 defer 的），彻底免疫模块加载/打包/共享模块错误
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist 核验：首页与文章页 HTML 均含内联注入脚本（`const accentList` + `--color-accent` 模板）、`_astro/*.js` 中已无 `pickRandomAccent/accent.length|0`（注入器彻底脱离 bundle）、`node --check` 内联脚本语法 OK、mock DOM 执行实测 `INJECTED style contains --color-accent: true`。
+
+**注意：** 若日后重新引入打包式脚本注入 CSS 变量，务必与含 `customElements.define`/模块作用域副作用的代码隔离，避免被连坐。
+
+### 2026-08-18 - 友圈页面重构：iframe → Friend-Circle-Lite 直嵌（参考 astro-devosfera circle.astro 定制）
+
+**背景：** 用户反馈 `/links/fcircle` 原样式（纯 iframe 嵌入 fc.mingcy.cn + 悬浮玻璃徽标）太丑，要求参考 `F:\桌面\study\opencode\astro-devosfera\src\pages\links\circle.astro` 定制专属本主题的朋友圈样式；要求：①随黑白模式自动切换（无需在页面内单独切换）；②去掉模板最上头的「聚合友链文章与站点状态」描述；③在「加载更多」按钮下方加一行「更新时间：xxxx」。
+
+**关键技术发现（插件机制验证）：**
+
+- Friend-Circle-Lite 插件（`https://fastly.jsdelivr.net/gh/willow-god/Friend-Circle-Lite/main/fclite.{min.js,min.css}`，jsDelivr 实测 200）**自动初始化**：`whenDOMReady()` 找 `#friend-circle-lite-root` 渲染，另监听 `pjax:complete`
+- **主题机制：插件 CSS 用 `[data-theme=light/dark]` 选择器定义 `--text-color/--background-color/--author-color-*/--border-color-*/--hover-color` 等变量**——与 gyoza 的 `html[data-theme]`（ThemeLoader 维护）天然匹配，黑白切换自动跟随，**无需 `__fcliteTheme` 之类的 JS 桥接**
+- 插件 stats 结构：`#stats-container` 含 3 行（Powered by / Designed By / **更新时间:xxx**），位于「加载更多」按钮下方
+- 数据源：`https://fc.mingcy.cn/all.json`（140 篇 + `statistical_data.last_updated_time`）+ `status.json`（33 个友链状态）实测可用
+- Swup 兼容：插件脚本放 main 容器内，@swup/astro 自带 ScriptsPlugin 在切页时重新执行 → 进入本页自动初始化；cleanFooter 监听 `swup:content:replaced` 重跑
+
+**修改文件：**
+
+- `src/pages/links/fcircle.astro`（**重写**，iframe 方案删除）：
+  - **Hero**：好友数徽标（`allFriends.length 位好友`，数据源 `src/data/links.ts` flatMap，实测 44 位）+ 渐变标题「朋友圈」（`linear-gradient(text-primary→accent)` + background-clip:text）+ 好友头像条（44 个 friend-chip，无头像 fallback 首字母）+ 3 个 aurora 光球动画；**已去掉「聚合友链文章与站点状态」描述**
+  - **Feed**：`#friend-circle-lite-root` 插件挂载点 + `UserConfig`（private_api_url=fc.mingcy.cn、page_turning_number=24、error_img 用 jsDelivr 默认 favicon）
+  - **友链状态区**：`status.json` fetch → 正常/异常计数 + 状态卡片网格（绿/红指示点）
+  - **更新时间**：cleanFooter 脚本保留 stats-container 最后一行并规范为「更新时间：xxx」（全角冒号）
+  - **全套主题变量化样式**（`<style is:global>`）：全部颜色用 gyoza CSS 变量（`rgb(var(--color-accent))`、`rgb(var(--color-bg-secondary)/.5)`、`rgb(var(--color-text-primary))`、`rgb(var(--color-border-primary))`），覆盖插件的 random-article 卡、文章卡片、加载更多按钮、弹窗、spinner、状态区；**刻意不用 backdrop-filter**（避免滚动重绘卡顿）；`prefers-reduced-motion` 降级光球/卡片动画；移动端响应式
+  - 变量映射：devosfera `--color-foreground`→`rgb(var(--color-text-primary))`、`--color-background`→`rgb(var(--color-bg-primary))`、`--color-border`→`rgb(var(--color-border-primary))`、`--color-accent`→`rgb(var(--color-accent))`（gyoza accent 是 RGB triplet，需 `rgb()` 包裹）
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist `links/fcircle/index.html` 核验：hero-title/好友徽标/friend-chip ×44/插件挂载点/UserConfig/fclite 脚本样式/状态区/cleanFooter 均在；「聚合友链文章与站点状态」「了解朋友们在做什么」均已不存在；旧 iframe 已移除。
+
+**注意：** ①插件卡片等元素刻意不设 backdrop-filter，与站点滚动降级策略一致；②`rgb(from #22c55e r g b / .3)`（十六进制输入）为合法 CSS，与既有 markdown.css 模式一致；③好友头像依赖友链站点的远程图片，加载失败回退 error_img（jsDelivr 默认图）。
+
+### 2026-08-18 - 朋友圈插件本地化：CDN 引用 → public/fclite 本地精简版（去版权、card-bg 定稿 100×100）
+
+**背景：** 用户要求：①`#friend-circle-lite-root .card-bg` 尺寸定为 100×100px（确认值）；②清理没用的 CSS/JS 避免缓存过大；③页面不能出现 "Powered by: FriendCircleLite / Designed By: LiuShen"（用户误以为在 CSS 中，实际是**插件 JS 动态渲染** stats-container 时写入的 `a.innerHTML=` 模板，CDN 版无法改）。
+
+**关键技术事实（源码验证）：**
+
+- 插件 CDN 版（fastly.jsdelivr.net/gh/willow-god/Friend-Circle-Lite/main/fclite.{min.js,min.css}）：JS 7504B / CSS 9906B，均带 sourcemap 注释
+- 版权两行在 `function c(n)` 的 stats 渲染：`<div>Powered by: <a ...>FriendCircleLite</a>...` + `<div>Designed By: ...LiuShen...` + `<div>更新时间:${o.last_updated_time}</div>`，位于「加载更多」按钮下方
+- 插件 CSS 原始 `#friend-circle-lite-root .card-bg` 为 **140×140px、opacity .4**；主题此前覆盖为 100×100、opacity .15
+
+**修改文件：**
+
+- `public/fclite/fclite.js`（**新建**，本地化插件 JS）：`a.innerHTML=` 改为**只渲染「更新时间:${o.last_updated_time}」一行**（正则替换删除 Powered/Designed 两行）；移除 sourcemap 注释；其余功能（随机文章/分页/弹窗/localStorage 10min 缓存）不变；7174B
+- `public/fclite/fclite.css`（**新建**，本地精简 CSS）：仅保留**布局/结构/动画**（grid/flex/position/transform/keyframes/响应式），**删除被 fcircle.astro 主题覆盖的颜色/边框/阴影属性**（颜色统一由主题 `#friend-circle-lite-root` 覆盖接管、走 CSS 变量随黑白切换）；保留 `:root`/`[data-theme]` 变量定义作兜底；**`#friend-circle-lite-root .card-bg` 定稿 width/height 100×100px** + `opacity .15`、hover `scale(1.1) + opacity .3`；8343B
+- `public/fclite/avatar-fallback.svg`（**新建**，236B）：头像加载失败兜底图（灰色圆 + 人形），替代原 jsDelivr favicon.ico（207KB）
+- `src/pages/links/fcircle.astro`：`<link>`/`<script src>` 改引用本地 `/fclite/fclite.css`、`/fclite/fclite.js`；`UserConfig.error_img` → `/fclite/avatar-fallback.svg`；**删除 cleanFooter 运行时清理脚本**（本地 JS 已不渲染版权行，无需兜底）；删除 fcircle.astro 内重复的 `.card-bg` 覆盖块（已并入本地 CSS）
+
+**验证：** `pnpm exec astro build` 206 pages Complete；dist 核验：`links/fcircle/index.html` 仅引用本地 `/fclite/fclite.css`、`/fclite/fclite.js`、`/fclite/avatar-fallback.svg`，**无 fastly.jsdelivr 残留**（页面中唯一 jsdelivr 是友链数据里好友自己的头像 URL，属数据内容非插件依赖）；本地 JS `node --check` 语法 OK 且无 Powered/Designed、保留更新时间渲染；dist/fclite 共 3 文件 15934B。
+
+**注意：** 本地化后文件无 hash，改内容后部署需留意浏览器缓存；插件 JS/CSS 若上游更新需手动同步（private_api_url 数据接口 `fc.mingcy.cn` 不变）。
+
+### 2026-08-18 - 朋友圈 Hero 区块移除（用户截图确认：红框圈住的整个顶部 hero）
+
+**背景：** 用户截图（红框标注）确认想去掉的是**整个 Hero 区域**——「44 位好友」徽标 + 渐变「朋友圈」标题 + 6 排好友头像条（此前"去掉'聚合友链文章与站点状态'"的诉求实际指整个区块，非仅描述文字）。
+
+**修改文件：** `src/pages/links/fcircle.astro`
+
+**修改内容：** ①删除 frontmatter 中 `import { friendLinks }` 与 `allFriends` 计算（仅 hero 使用）；②删除整个 `.circle-hero` HTML 块（aurora 光球 ×3、hero-badge、hero-title、friend-strip 头像条）；③删除全部 hero 相关 CSS（`.circle-hero/.aurora-orb/.hero-inner/.hero-badge/.badge-dot/.hero-title/.friend-strip*/.friend-chip/.chip-*` 及 orb-a1~a3/pulse-dot keyframes、响应式与 reduced-motion 中的引用）；④页面现直接以插件动态流开头（统计 + 随机文章 + 文章卡片），其后是友链状态区。
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist `links/fcircle/index.html` 核验：`位好友`/`hero-title`/`friend-chip`/`<h1>` 均不存在，`friend-circle-lite-root`/本地 fclite CSS/友链状态保留。
+
+### 2026-08-18 - 文章页评论悬浮按钮（CommentFAB）：右下角 BackToTop 上方、点击平滑滚动到评论区
+
+**背景：** 用户要求为文章页右下角添加评论悬浮小功能，位置在 `fixed right-4 bottom-6 z-10`（BackToTopFAB）的上方，尺寸参考 BackToTopFAB，图标自定（iconfont 无评论气泡图标，用 inline SVG），点击后平滑滚动到 Twikoo 评论区；完成后执行 `node scripts/sync.mjs` 同步源码到 GitHub。
+
+**修改文件：**
+
+- `src/components/post/CommentFAB.astro`（**新建**，纯 Astro + is:inline 脚本，无 React 生命周期问题）：
+  - 结构：`#comment-fab` 固定定位 `right: 1rem; bottom: 6rem`（BackToTop 占 1.5rem+2.5rem，其上方留 2rem 间距）、`z-index: 10`；`size-10`（2.5rem）圆形按钮，样式同 BackToTopFAB（圆角/边框/`bg-primary` 半透明 + `blur(8px)` + 阴影），hover 变 accent + 辉光
+  - 图标：inline SVG 评论气泡（lucide message-circle 线条风格，1.15rem）
+  - **运行时守卫**：`#comment-fab` 初始 `data-hidden`（display:none）；脚本检查 `document.getElementById('twikoo')` 存在才移除隐藏——`frontmatter comments:false` 的无评论区文章永远不显示
+  - 滚动浮现：scroll 事件 rAF 节流，`window.scrollY > 100` 时加 `is-visible`（opacity + translateY/scale 弹簧过渡）
+  - 点击：`target.scrollIntoView({ behavior: 'smooth', block: 'start' })`（html `scroll-padding-top: 64px` 自动避开固定 header）
+  - Swup 兼容：组件在 main 容器内、`swup-transition-fade` 外（避免 fixed 定位受页面切换 transform 影响）；Swup 切页重建 main 时 inline 脚本随新 HTML 重新执行
+- `src/layouts/MarkdownLayout.astro`：import 并挂载 `<CommentFAB />`（main 内、HeadGradient 旁、swup 动画容器外）——仅文章页布局包含
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist 核验：文章页（remark）含 `comment-fab` + `id="twikoo"` + `scrollIntoView` 脚本 + SVG 图标，首页无 `comment-fab`；无评论区文章的按钮由运行时 `#twikoo` 检查隐藏（HTML 保留 `data-hidden` 初始态）。
+
+**注意：** 评论按钮依赖 Twikoo.astro 静态渲染的 `#twikoo` 容器（与 twikoo.init 的异步加载无关），滚动定位始终可用。
+
+### 2026-08-18 19:35 - 控制台报错排查结论：ERR_BLOCKED_BY_CLIENT / ERR_CONNECTION_CLOSED 为浏览器自带跟踪防护拦截（不做代码更改）
+
+**背景：** 用户反馈文章页（localhost:4322/2026/08/16/deepseek-harness）控制台报错：`Failed to load resource: net::ERR_CONNECTION_CLOSED` ×1、`Failed to load resource: net::ERR_BLOCKED_BY_CLIENT` ×3，另有 32 条「Tracking Prevention blocked access to storage」警告。
+
+**排查过程（截图 + 实测）：**
+
+- 控制台截图逐字转录：所有报错均来自 `script.js:1`（即两个 Umami 统计脚本 `um.mingcy.cn/script.js` 与 `cloud.umami.is/script.js`）；Vercel SpeedInsights/Analytics 那几条是 **dev 模式调试日志**（Debug mode enabled，生产不发请求），非错误
+- 实测两个域名（本机）：`https://um.mingcy.cn/script.js` → **200**（4595B）、`https://cloud.umami.is/script.js` → **200**（4717B），服务均正常
+- **结论：报错是浏览器侧行为，非站点代码问题**：
+  - `ERR_BLOCKED_BY_CLIENT`：用户浏览器为 Edge，其**跟踪防护（Tracking Prevention）/广告拦截扩展**拦截第三方统计脚本（`cloud.umami.is` 为典型被拦目标），代码无法绕过
+  - `ERR_CONNECTION_CLOSED`：`um.mingcy.cn` 服务实测正常（200），为用户浏览器/网络侧连接被关闭（瞬时问题或拦截表现）
+  - 32 条 storage 拦截警告同样是 Edge 跟踪防护对第三方存储访问的常规提示
+
+**处理：**
+
+- 曾尝试移除 `cloud.umami.is` 云版脚本以消除报错（Layout.astro 一度删除该行并构建）
+- **用户决定不做更改**：报错属浏览器自带拦截行为，保留双 Umami 实例（自建 `um.mingcy.cn` + 云版 `cloud.umami.is`，CLAUDE.md 2026-07-17 记录的双实例保障统计不中断）
+- `src/layouts/Layout.astro` **已还原**（恢复 `cloud.umami.is/script.js` 行）
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist `index.html` 核验两条 Umami 脚本均恢复。
+
+**注意：** 若访客在 Edge/带广告拦截的浏览器打开站点，控制台仍会出现同类拦截报错——属浏览器自带行为，非站点缺陷，无需处理；统计功能在未拦截环境下正常收集（自建实例为主）。

@@ -1,0 +1,8 @@
+---
+import Twikoo from './Twikoo.astro'
+import { twikoo } from '@/config.json'
+---
+
+<div>
+  {twikoo.envId && <Twikoo />}
+</div>

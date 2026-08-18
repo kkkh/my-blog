@@ -1,0 +1,61 @@
+---
+import { projects } from '@/data/projects'
+
+const imageBase = 'https://mingcy.cn/'
+---
+
+<ul class="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8">
+  {
+    projects.map((project) => (
+      <li>
+        <div class="rounded-lg bg-accent/10 overflow-hidden group h-full flex flex-col">
+          <div class="aspect-video overflow-hidden">
+            <img
+              class="size-full object-cover transition-transform group-hover:scale-110"
+              src={imageBase + project.image}
+              alt={`Project cover: ${project.title}`}
+              loading="lazy"
+            />
+          </div>
+          <div class="p-4 flex flex-col grow">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xl font-bold group-hover:text-accent">{project.title}</span>
+            </div>
+            <p class="mt-2 text-sm line-clamp-2 text-secondary grow">{project.description}</p>
+            <div class="mt-3 flex items-center gap-2 flex-wrap">
+              {project.tags.map((tag) => (
+                <span class="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent">
+                  {tag}
+                </span>
+              ))}
+            </div>
+            <div class="mt-3 flex items-center gap-3">
+              <a
+                href={project.demoUrl}
+                target="_blank"
+                rel="noopener noreferrer external"
+                class="text-sm hover:text-accent flex items-center gap-1"
+              >
+                <i class="iconfont icon-external-link"></i>
+                <span>Demo</span>
+              </a>
+              {
+                project.codeUrl && (
+                  <a
+                    href={project.codeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer external"
+                    class="text-sm hover:text-accent flex items-center gap-1"
+                  >
+                    <i class="iconfont icon-github"></i>
+                    <span>Source</span>
+                  </a>
+                )
+              }
+            </div>
+          </div>
+        </div>
+      </li>
+    ))
+  }
+</ul>
