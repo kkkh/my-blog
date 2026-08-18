@@ -914,3 +914,16 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 **验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist 核验：fcircle 页含静态 UserConfig + `/fclite/fclite.js` 引用 + 挂载点 + `/fclite/fclite.css`；Layout 含 `FCLITE_JS` 全局脚本 + `data-fclite` 守卫 + `links-summary` 拉取 + UserConfig 兜底；用户截图确认页面已正常渲染（统计卡 + 随机文章 + 文章卡片）。
 
 **注意：** 若日后在 `main` 容器内放置依赖 Swup 切页后重新执行的逻辑，必须挂到 body 级常驻脚本（Layout.astro）或 document 级委托 + 一次性守卫，不能依赖 main 内 inline 脚本在切页后重跑。
+
+### 2026-08-18 20:45 - 朋友圈 Swup 切页样式丢失修复（fclite.css 移入 Layout head 全局加载）
+
+**背景：** 用户用截图（1.webp vs 2.webp）精确定位：**从任意页面 Swup 进入朋友圈显示 @1**（统计/随机文章正常，但文章卡片区只有一张巨大的封面图、无网格布局），**整页刷新后显示 @2**（完整卡片网格）。**根因是 fclite.css 未加载**：`<link rel="stylesheet" href="/fclite/fclite.css">` 此前放在 fcircle 页面（`main` 容器内），Swup 用 innerHTML 替换 main 时该 link 未被正确加载/应用 → 插件 DOM 无布局样式：`.card-bg` 失去 100×100 尺寸限制（封面图显示为原始巨大尺寸）、卡片网格塌陷。刷新时 link 随 HTML 正常解析 → 正常。
+
+**修改文件：**
+
+- `src/layouts/Layout.astro`：`<link rel="stylesheet" href="/fclite/fclite.css" />` 移入 **head 全局加载**（Swup 不替换 head，所有页面样式始终可用）；全局兜底脚本新增 `ensureFcliteCss()`（遍历 `document.styleSheets` 检查 `/fclite/fclite.css`，未加载则创建 `<link data-fclite-css>` 补挂 head），`boot()` 开头调用；并将 `swup:content:replaced`（Swup 4 无此事件）改为 `swup:page:view`（真实替换后事件）+ `astro:page-load` 双监听、150ms/700ms 双次兜底、`ensureFclite` 的 script 加 `onerror` 自动重试
+- `src/pages/links/fcircle.astro`：删除 main 内 fclite.css `<link>`（由 Layout head 提供），保留静态 `window.UserConfig` + `<script src="/fclite/fclite.js">`
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist 核验：`index.html` 的 `</head>` 前含 `/fclite/fclite.css` + `ensureFcliteCss`；fcircle 页 head（继承 Layout）含 fclite.css、main 内 link 已移除、静态 fclite.js + UserConfig 保留。
+
+**注意：** 关键教训——**凡被 Swup 替换容器（main）内的 `<link>` 样式与 `<script>` 脚本都不可靠**，样式应放 head（Layout 全局）、逻辑应放 body 级常驻脚本；fclite.css 全局加载会让所有页面多 ~7.7KB 未使用样式（可接受）。

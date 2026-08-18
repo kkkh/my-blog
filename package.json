@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "build": "astro check && node scripts/gen-ai-summaries.mjs && astro build && pagefind --site dist",
     "mcy": "node scripts/deploy.mjs",
+    "d": "node scripts/sync.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "lint": "prettier --write .",

@@ -34,6 +34,8 @@ const { title, description, image } = Astro.props
     <PrintVersion />
     <script is:inline async defer src="https://um.mingcy.cn/script.js" data-website-id="2dec6bd6-3aa9-49f5-a7ec-cb0c23c74f44"></script>
     <script is:inline async defer src="https://cloud.umami.is/script.js" data-website-id="86be4560-edbf-468b-9897-813f94dfe6c3"></script>
+    <!-- 朋友圈插件样式：放在 head 全局加载（Swup 切页不替换 head），避免 main 内 link 在切页后未加载导致卡片样式丢失 -->
+    <link rel="stylesheet" href="/fclite/fclite.css" />
   </head>
   <body>
     <AuroraBackground />
@@ -123,6 +125,11 @@ const { title, description, image } = Astro.props
           s.src = FCLITE_JS
           s.setAttribute('data-fclite', '1')
           s.onload = cb
+          // 加载失败：清除标记，稍后随下一次 boot 重试
+          s.onerror = function () {
+            s.removeAttribute('data-fclite')
+            setTimeout(boot, 1000)
+          }
           document.head.appendChild(s)
         }
 
@@ -133,7 +140,28 @@ const { title, description, image } = Astro.props
           return d.innerHTML
         }
 
+        // 确保 fclite.css 已加载（防 main 内 link 在 Swup 切页后未应用）
+        function ensureFcliteCss() {
+          var found = false
+          for (var i = 0; i < document.styleSheets.length; i++) {
+            var href = document.styleSheets[i].href || ''
+            if (href.indexOf('/fclite/fclite.css') !== -1) {
+              found = true
+              break
+            }
+          }
+          if (!found && !document.querySelector('link[data-fclite-css]')) {
+            var l = document.createElement('link')
+            l.rel = 'stylesheet'
+            l.href = '/fclite/fclite.css'
+            l.setAttribute('data-fclite-css', '1')
+            document.head.appendChild(l)
+          }
+        }
+
         function boot() {
+          ensureFcliteCss()
+
           // 1) 插件动态流
           var root = document.getElementById('friend-circle-lite-root')
           if (root) {
@@ -199,12 +227,16 @@ const { title, description, image } = Astro.props
           document.addEventListener('DOMContentLoaded', boot)
         } else {
           setTimeout(boot, 200)
+          setTimeout(boot, 800)
         }
-        document.addEventListener('swup:content:replaced', function () {
+        // Swup 4 替换后事件：page:view（@swup/astro 在替换完成后派发，同时触发 astro:page-load）
+        document.addEventListener('swup:page:view', function () {
           setTimeout(boot, 150)
+          setTimeout(boot, 700)
         })
         document.addEventListener('astro:page-load', function () {
           setTimeout(boot, 150)
+          setTimeout(boot, 700)
         })
       })()
     </script>
