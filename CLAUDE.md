@@ -927,3 +927,26 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 **验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 206 pages Complete；dist 核验：`index.html` 的 `</head>` 前含 `/fclite/fclite.css` + `ensureFcliteCss`；fcircle 页 head（继承 Layout）含 fclite.css、main 内 link 已移除、静态 fclite.js + UserConfig 保留。
 
 **注意：** 关键教训——**凡被 Swup 替换容器（main）内的 `<link>` 样式与 `<script>` 脚本都不可靠**，样式应放 head（Layout 全局）、逻辑应放 body 级常驻脚本；fclite.css 全局加载会让所有页面多 ~7.7KB 未使用样式（可接受）。
+
+### 2026-08-18 21:00 - Twikoo 1.7.19 邮件通知模板（白天模式，适配博客主题）
+
+**背景：** 用户要求为博客的 Twikoo 评论系统写邮件通知模板，使用 1.7.19 版本、适配本站主题（浅绿背景 + 深蓝强调 + 圆角卡片 + 科技感）、白天模式风格。
+
+**关键机制（从 twikoo-vercel@1.7.19 → twikoo-func@1.7.19 源码 utils/notify.js 确认）：**
+
+- 邮件模板**不是 EJS**，而是 **`${变量}` 字符串替换**（`.replace(/\${SITE_URL}/g, ...)`），模板粘贴到管理后台「邮件通知」配置项
+- 两个模板配置项 + 两个主题配置项：`MAIL_TEMPLATE_ADMIN`（博主通知，变量 `SITE_URL/SITE_NAME/NICK/IMG/IP/MAIL/COMMENT/POST_URL`）、`MAIL_TEMPLATE`（回复通知，变量 `IMG/PARENT_IMG/SITE_URL/SITE_NAME/PARENT_NICK/PARENT_COMMENT/NICK/COMMENT/POST_URL`）、`MAIL_SUBJECT_ADMIN`、`MAIL_SUBJECT`
+- `NICK/MAIL/PARENT_NICK` 已由官方 `escapeHtml` 转义；`${COMMENT}/${PARENT_COMMENT}` 未转义（与官方默认一致），仅作文本展示
+- 头像变量 `${IMG}` 为完整 URL
+
+**交付文件：**
+
+- `docs/twikoo-mail-template/README.md` — 配置位置（Twikoo 管理后台 → 设置 → 邮件通知）、变量表、使用步骤
+- `docs/twikoo-mail-template/notify-admin.html` — 博主新评论通知模板（白天模式）
+- `docs/twikoo-mail-template/notify-reply.html` — 回复通知模板（白天模式）
+
+**模板设计（白天模式）：** 邮件背景 `#f2f5ec`（博客亮色 bg-primary）、主卡片白色圆角 16px + 边框 `#d5dcc6`、头部深蓝渐变条（`#3b82f6→#2563eb`）白字博客名、正文 `#33373a`、次要 `#5f6b5a`、评论内容块浅绿底 + 左侧 3px 蓝边、回复区分主/次内容块（浅蓝底 vs 浅绿底 + 头像蓝框区分）、蓝色圆角按钮「查看完整内容/查看回复」（POST_URL）、底部博客地址 + 「Powered by Twikoo」；**table 内联样式**（兼容 Outlook/Gmail/QQ 邮箱，无 flex/grid/外部依赖）。
+
+**验证：** node 校验两模板 table 标签闭合完整（5/5、6/6）、使用变量与源码替换列表逐一比对——无缺失、无多余。
+
+**注意：** `${COMMENT}` 未转义，勿将评论内容拼进 href/属性；模板变量名不可改动，否则 Twikoo 无法替换会原样输出 `${...}`。

@@ -223,6 +223,13 @@ export const friendLinks: LinkCategory[] = [
         avatar: 'https://gcore.jsdelivr.net/gh/Keduoli03/My_img@img/img/头像.jpg',
         desc: '请为一切不真实之物骄傲，因为我们高于这个世界！',
       },
+      {
+        name: '酥米的小站',
+        url: 'https://www.sumi233.top',
+        avatar:
+          'https://cdn.sumi233.top/gh/huang233893/blog-image-bed@main/top/huang233893/imgs/blog/usersumi.png',
+        desc: '终有一日，寻梦中人',
+      },
     ],
   },
   {
