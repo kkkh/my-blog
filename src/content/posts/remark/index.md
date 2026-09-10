@@ -370,3 +370,89 @@ CRT 扫描高亮，适合强调关键词：
 | 表格增强     | 标准 Markdown 表格                        | 自动美化样式       |
 | 脚注         | `[^1]` / `[^1]: 内容`                     | 页面底部注释       |
 | 链接卡片     | `<LinkCard>`                              | 仅 `.mdx` 文章可用 |
+
+## Fancybox 图片灯箱
+
+主题集成了 [Fancybox](https://fancyapps.com/fancybox/) 图片灯箱，文章中的图片点击即可放大预览。
+
+### 自动生效
+
+所有文章中的图片 **自动启用** 灯箱功能，无需额外配置。点击图片会弹出全屏预览，支持：
+
+- 左右箭头/键盘切换图片
+- 手势缩放（移动端）
+- Escape 关闭
+- 显示图片描述文字（Markdown `![描述](图片)` 中的描述）
+
+### 图片描述文字
+
+使用 Markdown 图片语法时，`alt` 文字会显示在图片下方居中：
+
+```md
+![这是一张示例图片的描述文字](image.webp)
+```
+
+效果：图片下方会显示「这是一张示例图片的描述文字」作为图注。
+
+## LivePhoto 实况照片
+
+主题集成了 [HeoLivePhoto](https://livephoto.zhheo.com/)，支持在文章中嵌入实况照片（Live Photo）。
+
+### 使用方式
+
+#### 1. 单文件 `.pvt` 格式（推荐）
+
+将 `.pvt` 文件放在 `public/` 目录下，然后在文章中使用普通 `img` 标签：
+
+```md
+![实况照片](/photo.pvt)
+```
+
+脚本会自动：
+
+- 解析 `.pvt` 文件（ZIP 格式），提取封面 JPEG 和视频 MP4
+- 桌面端：鼠标悬浮左上角「实况」徽标播放，移开停止
+- 移动端：长按播放，松手停止
+
+#### 2. 封面 + 视频分离
+
+如果封面图和视频是分开的文件：
+
+```html
+<img src="cover.jpg" data-live-video="motion.mp4" alt="实况照片" />
+```
+
+#### 3. Apple 官方写法（LivePhotosKit 风格）
+
+```html
+<div
+  data-live-photo
+  data-photo-src="cover.jpg"
+  data-video-src="motion.mp4"
+  style="width: 320px; height: 320px"
+></div>
+```
+
+### 参数说明
+
+| 属性              | 说明                        | 默认值                            |
+| ----------------- | --------------------------- | --------------------------------- |
+| `src`             | `.pvt` 文件路径或封面图路径 | -                                 |
+| `data-live-video` | 视频文件路径（MP4/MOV）     | -                                 |
+| `data-live-loop`  | 是否循环播放                | `false`                           |
+| `data-live-badge` | 左上徽标文字，`false` 隐藏  | 自动（中文「实况」/英文「LIVE」） |
+| `data-live-pvt`   | `.pvt` 文件路径（替代 src） | -                                 |
+
+### 生成 `.pvt` 文件
+
+访问 [洪绘Live图](https://livephoto.zhheo.com/create.html) 在线合成：
+
+- 上传 Apple 设备导出的 HEIC 封面 + MOV 视频
+- 选择导出格式为 `.pvt`
+- 下载后放到 `public/` 目录即可使用
+
+### 注意事项
+
+- `.pvt` 文件本质上是 ZIP 包，包含 JPEG 封面和 MP4/MOV 视频
+- 跨域引用 `.pvt` 时，托管方需要允许 CORS
+- 视频默认静音、不循环，适合社交媒体风格的实况照片展示

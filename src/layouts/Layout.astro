@@ -36,6 +36,8 @@ const { title, description, image } = Astro.props
     <script is:inline async defer src="https://cloud.umami.is/script.js" data-website-id="86be4560-edbf-468b-9897-813f94dfe6c3"></script>
     <!-- 朋友圈插件样式：放在 head 全局加载（Swup 切页不替换 head），避免 main 内 link 在切页后未加载导致卡片样式丢失 -->
     <link rel="stylesheet" href="/fclite/fclite.css" />
+    <!-- Fancybox 图片灯箱样式 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/6.0.29/fancybox/fancybox.min.css" />
   </head>
   <body>
     <AuroraBackground />
@@ -240,5 +242,38 @@ const { title, description, image } = Astro.props
         })
       })()
     </script>
+    <!-- Fancybox 图片灯箱 -->
+    <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/6.0.29/fancybox/fancybox.umd.min.js"></script>
+    <script is:inline>
+      // Fancybox 初始化：绑定文章图片点击事件，Swup 切页后重新绑定
+      function initFancybox() {
+        if (typeof Fancybox === 'undefined') return
+        Fancybox.bind('[data-fancybox="gallery"]', {
+          Toolbar: {
+            display: {
+              left: [],
+              middle: [],
+              right: ['close'],
+            },
+          },
+          Thumbs: false,
+        })
+      }
+      // 首次加载
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFancybox)
+      } else {
+        initFancybox()
+      }
+      // Swup 切页后重新绑定
+      document.addEventListener('swup:page:view', function () {
+        setTimeout(initFancybox, 200)
+      })
+      document.addEventListener('astro:page-load', function () {
+        setTimeout(initFancybox, 200)
+      })
+    </script>
+    <!-- LivePhoto 实况照片支持 -->
+    <script is:inline src="/livephoto/heolivephoto.js" defer></script>
   </body>
 </html>

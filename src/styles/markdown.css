@@ -175,6 +175,15 @@ html[data-theme='dark'] .markdown pre {
 
 .markdown img {
   @apply rounded-lg bg-secondary min-h-[80px] min-w-[80px];
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.markdown img:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgb(var(--color-accent) / 0.2);
 }
 
 .markdown figure {
@@ -182,7 +191,9 @@ html[data-theme='dark'] .markdown pre {
 }
 
 .markdown figcaption {
-  @apply mt-3 text-secondary text-sm;
+  @apply mt-3 text-secondary text-sm text-center;
+  max-width: 90%;
+  line-height: 1.6;
 }
 
 .markdown .heading-anchor {

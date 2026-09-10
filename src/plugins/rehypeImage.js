@@ -18,15 +18,21 @@ export function rehypeImage() {
 
 function buildImage(node) {
   const imgProps = node.properties
+  const alt = imgProps.alt || ''
 
-  return h('img', { ...imgProps, loading: 'lazy' })
+  return h('img', {
+    ...imgProps,
+    loading: 'lazy',
+    'data-fancybox': 'gallery',
+    'data-caption': alt,
+  })
 }
 
 function buildFigure(node) {
-  let imgTitle = node.properties.title
-  if (imgTitle) {
-    imgTitle = imgTitle.trim()
+  let imgAlt = node.properties.alt
+  if (imgAlt) {
+    imgAlt = imgAlt.trim()
   }
 
-  return h('figure', null, [buildImage(node), imgTitle ? h('figcaption', imgTitle) : null])
+  return h('figure', null, [buildImage(node), imgAlt ? h('figcaption', imgAlt) : null])
 }
