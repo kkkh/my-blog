@@ -950,3 +950,29 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 **验证：** node 校验两模板 table 标签闭合完整（5/5、6/6）、使用变量与源码替换列表逐一比对——无缺失、无多余。
 
 **注意：** `${COMMENT}` 未转义，勿将评论内容拼进 href/属性；模板变量名不可改动，否则 Twikoo 无法替换会原样输出 `${...}`。
+
+### 2026-09-12 - 灯箱修复（Fancybox 本地化 + 相册 Lightbox Swup 兼容）& EdgeOne 预热 + 百度收录自动化工作流
+
+**背景：** 用户反馈两个灯箱问题：①文章页 Fancybox 点击无放大效果（Edge 跟踪防护拦截 CDN 脚本）；②相册页（galleries/[slug]）点击图片无灯箱反应（Swup 切页后 inline 脚本不重新执行）。同时需要接入 EdgeOne 缓存预热和百度收录推送自动化。
+
+**修改文件：**
+
+- `public/fancybox/fancybox.min.css`（**新建**，fancyapps-ui 6.0.29 CSS 本地化，28KB）
+- `public/fancybox/fancybox.umd.min.js`（**新建**，fancyapps-ui 6.0.29 JS 本地化，98KB）
+- `src/layouts/Layout.astro`（Fancybox CDN 引用 → 本地 `/fancybox/` 路径；body 末尾新增 gallery lightbox 常驻初始化脚本）
+- `src/pages/galleries/[slug].astro`（删除原 `is:inline` inline 脚本块，保留 `<dialog>` HTML + CSS）
+- `scripts/edgeone_prefetch.py`（**新建**，EdgeOne 缓存预热脚本：腾讯云 SDK、分批提交、限速、重试、轮询任务状态）
+- `scripts/baidu_push.py`（**新建**，百度普通收录推送脚本：从 sitemap 收集页面 URL、分批推送、解析返回结果）
+- `.github/workflows/deploy-warmup-push.yml`（**新建**，GitHub Actions 工作流：push main → EdgeOne 预热 → 百度推送；支持 workflow_dispatch 手动触发、定时 cron）
+
+**修改内容：**
+
+- **Fancybox 本地化**：从 `cdnjs.cloudflare.com` 下载 CSS/JS 到 `public/fancybox/`，Layout.astro 引用改为同源 `/fancybox/fancybox.min.css` + `/fancybox/fancybox.umd.min.js`，解决 Edge 跟踪防护拦截第三方 CDN 脚本导致 `typeof Fancybox === 'undefined'` → 灯箱失效的问题
+- **相册 Lightbox Swup 兼容修复**：原 `galleries/[slug].astro` 的 inline 脚本监听 `astro:after-swap`（Swup 4 不存在的事件），且 Swup 用 innerHTML 替换 main 时 inline 脚本不重新执行 → 灯箱 click 事件从未绑定。修复方案：将 `initGalleryLightbox()` 提升到 `Layout.astro` body 级常驻脚本（与 fclite、复制按钮同模式），监听 `swup:page:view` + `astro:page-load` 事件，`grid.dataset.lightboxInit` 防重复绑定
+- **EdgeOne 预热脚本**：使用腾讯云 SDK（`tencentcloud-sdk-python`）调用 `CreatePrefetchTask` API，从 sitemap + dist 目录收集 URL，分批提交（每批 ≤5000 条，`time.sleep(0.2)` 限速，指数退避重试），可选轮询任务状态（间隔 10s，超时 900s），输出 GitHub Actions Step Summary
+- **百度收录推送脚本**：从 sitemap 收集页面 URL（不包含静态资源），分批推送给百度 `data.zz.baidu.com/urls` API（每批 ≤2000 条），解析 success/remain/not_same_site/not_valid，支持 dry-run 测试模式
+- **GitHub Actions 工作流**：`deploy-warmup-push.yml`，触发条件：push main（dist/public/out 变更）、定时 cron（每天 UTC 18:00 / 北京时间 02:00）、手动 workflow_dispatch（可附加额外 URL）；`concurrency` 防并发；Job 1 EdgeOne 预热 → Job 2 百度推送（`needs` 依赖确保预热先完成）
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 208 pages Complete（133.7s）；dist 核验：`/fancybox/fancybox.min.css` + `fancybox.umd.min.js` 存在、所有文章页引用本地 `/fancybox/` 路径（非 CDN）、galleries 页面含 `initGalleryLightbox` 常驻脚本 + `<dialog id="lightbox">` 结构保留、`initGalleryLightbox` 监听 `swup:page:view`/`astro:page-load`；`pnpm d` 推送成功（`bb906fe`）。
+
+**注意：** ①自动化工作流需在 GitHub 仓库 Settings > Secrets 配置 `TENCENTCLOUD_SECRET_ID/KEY`、`EDGEONE_ZONE_ID`、`BAIDU_SITE/TOKEN`，Variables 配置 `SITE_ORIGIN`、`SITEMAP_URL`；②首次运行百度推送建议设 `BAIDU_DRY_RUN=true` 干跑验证 URL 列表；③百度 token 如泄露需去搜索资源平台重置。
