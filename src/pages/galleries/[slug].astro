@@ -93,62 +93,7 @@ const images = Object.entries(allImages)
   </div>
 </dialog>
 
-<script is:inline>
-  function initGallery() {
-    var grid = document.getElementById("gallery-grid")
-    var lightbox = document.getElementById("lightbox")
-    if (!grid || !lightbox) return
-
-    var items = Array.from(grid.querySelectorAll(".gallery-item"))
-    var lightboxImg = document.getElementById("lightbox-img")
-    var lightboxCaption = document.getElementById("lightbox-caption")
-    var lightboxCounter = document.getElementById("lightbox-counter")
-    var closeBtn = document.getElementById("lightbox-close")
-    var prevBtn = document.getElementById("lightbox-prev")
-    var nextBtn = document.getElementById("lightbox-next")
-
-    var current = 0
-
-    function open(idx) {
-      current = Math.max(0, Math.min(idx, items.length - 1))
-      var btn = items[current]
-      var img = btn.querySelector("img")
-      if (!img || !lightboxImg || !lightboxCaption || !lightboxCounter) return
-      lightboxImg.src = img.src
-      lightboxImg.alt = img.alt
-      lightboxCaption.textContent = img.alt
-      lightboxCounter.textContent = current + 1 + " / " + items.length
-      if (prevBtn) prevBtn.style.visibility = current === 0 ? "hidden" : "visible"
-      if (nextBtn) nextBtn.style.visibility = current === items.length - 1 ? "hidden" : "visible"
-      lightbox.showModal()
-      document.body.style.overflow = "hidden"
-    }
-
-    function close() {
-      lightbox.close()
-      document.body.style.overflow = ""
-    }
-
-    items.forEach(function(btn, idx) { btn.addEventListener("click", function() { open(idx) }) })
-    if (closeBtn) closeBtn.addEventListener("click", close)
-    if (prevBtn) prevBtn.addEventListener("click", function() { open(current - 1) })
-    if (nextBtn) nextBtn.addEventListener("click", function() { open(current + 1) })
-
-    lightbox.addEventListener("click", function(e) {
-      if (!e.target.closest("img, button, .lightbox-caption, .lightbox-counter")) close()
-    })
-
-    document.addEventListener("keydown", function(e) {
-      if (!lightbox.open) return
-      if (e.key === "Escape") close()
-      if (e.key === "ArrowLeft") open(current - 1)
-      if (e.key === "ArrowRight") open(current + 1)
-    })
-  }
-
-  initGallery()
-  document.addEventListener("astro:after-swap", initGallery)
-</script>
+<!-- Lightbox 初始化逻辑已提升到 Layout.astro body 级常驻脚本（Swup 切页后自动重新绑定） -->
 
 <style>
   .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; list-style: none; padding: 0; margin: 0; }

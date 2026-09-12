@@ -1,0 +1,78 @@
+name: Deploy Warmup & Push
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "额外预热的 URL（逗号分隔，可留空）"
+        required: false
+        type: string
+      watch:
+        description: "提交后轮询任务状态"
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    - cron: "0 18 * * *"   # 每天 UTC 18:00（北京时间次日 02:00）
+  push:
+    branches: [main]
+    paths:
+      - "dist/**"
+      - "public/**"
+      - "out/**"
+      - ".github/workflows/deploy-warmup-push.yml"
+
+concurrency:
+  group: deploy-warmup-push
+  cancel-in-progress: false
+
+jobs:
+  # ---------- Job 1: EdgeOne 预热 ----------
+  edgeone-prefetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --quiet tencentcloud-sdk-python
+      - name: Run EdgeOne prefetch
+        env:
+          TENCENTCLOUD_SECRET_ID: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+          TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+          EDGEONE_ZONE_ID: ${{ secrets.EDGEONE_ZONE_ID }}
+          TENCENTCLOUD_REGION: ap-guangzhou
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+          SITEMAP_URL: ${{ vars.SITEMAP_URL }}
+          DIST_DIR: dist
+          URLS: ${{ inputs.urls }}
+          BATCH_SIZE: "5000"
+          MAX_RETRY: "3"
+          WATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.watch || 'true' }}
+          POLL_INTERVAL: "10"
+          POLL_TIMEOUT: "900"
+        run: python scripts/edgeone_prefetch.py
+
+  # ---------- Job 2: 百度普通收录推送 ----------
+  baidu-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: edgeone-prefetch   # 等预热成功后再推送，避免百度抓取到旧缓存
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Run Baidu Push
+        env:
+          BAIDU_SITE: ${{ secrets.BAIDU_SITE }}
+          BAIDU_TOKEN: ${{ secrets.BAIDU_TOKEN }}
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+          SITEMAP_URL: ${{ vars.SITEMAP_URL }}
+          URLS: ${{ inputs.urls }}
+          BAIDU_BATCH_SIZE: "2000"
+          BAIDU_DRY_RUN: "false"
+        run: python scripts/baidu_push.py
