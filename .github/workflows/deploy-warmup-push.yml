@@ -36,7 +36,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
       - run: pip install --quiet tencentcloud-sdk-python
       - name: Run EdgeOne prefetch
         env:
@@ -65,7 +64,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
       - name: Run Baidu Push
         env:
           BAIDU_SITE: ${{ secrets.BAIDU_SITE }}
