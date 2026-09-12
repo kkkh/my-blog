@@ -318,7 +318,7 @@ const { title, description, image } = Astro.props
       // Fancybox 初始化：绑定文章图片点击事件，Swup 切页后重新绑定
       function initFancybox() {
         if (typeof Fancybox === 'undefined') return
-        Fancybox.bind('[data-fancybox="gallery"]', {
+        Fancybox.bind('[data-fancybox="gallery"], [dataFancybox="gallery"]', {
           Toolbar: {
             display: {
               left: [],
