@@ -230,6 +230,18 @@ export const friendLinks: LinkCategory[] = [
           'https://cdn.sumi233.top/gh/huang233893/blog-image-bed@main/top/huang233893/imgs/blog/usersumi.png',
         desc: '终有一日，寻梦中人',
       },
+      {
+        name: '柯希兔',
+        url: 'https://kexitu.com',
+        avatar: 'https://img.kexitu.com/p1/kexitu.png',
+        desc: '平凡亦有诗意',
+      },
+      {
+        name: 'Mete0r’s Blog | 壹人小站',
+        url: 'https://www.xscnet.cn/',
+        avatar: 'https://img.xscnet.cn//i/2026/06/28/6a40e72d6a01e.jpg',
+        desc: 'Trust the process.',
+      },
     ],
   },
   {

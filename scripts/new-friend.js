@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const linksFile = path.resolve(__dirname, '../src/data/links.ts')
+const friendJsonFile = path.resolve(__dirname, '../public/js/friend.json')
 
 const name = await input({
   message: '请输入友链名称',
@@ -53,3 +54,13 @@ if (match) {
 
 fs.writeFileSync(linksFile, content)
 console.log(`已在 "${category}" 中添加友链：${name}`)
+
+// 追加到 public/js/friend.json
+try {
+  const friendJson = JSON.parse(fs.readFileSync(friendJsonFile, 'utf-8'))
+  friendJson.friends.push([name, link, avatar])
+  fs.writeFileSync(friendJsonFile, JSON.stringify(friendJson, null, 2) + '\n')
+  console.log(`已追加到 friend.json：${name}`)
+} catch (e) {
+  console.error(`写入 friend.json 失败：${e.message}`)
+}

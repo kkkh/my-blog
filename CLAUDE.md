@@ -977,20 +977,18 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 
 **注意：** ①自动化工作流需在 GitHub 仓库 Settings > Secrets 配置 `TENCENTCLOUD_SECRET_ID/KEY`、`EDGEONE_ZONE_ID`、`BAIDU_SITE/TOKEN`，Variables 配置 `SITE_ORIGIN`、`SITEMAP_URL`；②首次运行百度推送建议设 `BAIDU_DRY_RUN=true` 干跑验证 URL 列表；③百度 token 如泄露需去搜索资源平台重置。
 
-### 2026-09-13 - 灯箱统一：文章 + 相册全部使用 Fancybox（删除自建 Lightbox）
+### 2026-09-13 - 灯箱统一：文章 + 相册全部使用 Fancybox（删除自建 Lightbox）& 修复导航/选择器 + new-friend.js 补充 friend.json 写入
 
-**背景：** 用户反馈两个灯箱问题：①文章页 Fancybox 有点击放大但没有左右滑动功能；②相册页 Lightbox 需要等所有图片加载完才能点击放大，现在点击功能消失。用户决定将文章和相册全部换成 Fancybox 统一处理。
+**背景：** 用户反馈两个灯箱问题：①文章页 Fancybox 有点击放大但没有左右滑动功能；②相册页 Lightbox 需要等所有图片加载完才能点击放大，现在点击功能消失。用户决定将文章和相册全部换成 Fancybox 统一处理。同时发现 `new-friend.js` 只写 `links.ts` 不写 `friend.json`。
 
 **修改文件：**
 
-- `src/layouts/Layout.astro`（Fancybox 配置更新）
+- `src/layouts/Layout.astro`（Fancybox 配置更新 + 修复初始化逻辑）
 - `src/pages/galleries/[slug].astro`（删除自建 Lightbox，改用 Fancybox）
+- `scripts/new-friend.js`（新增 `friend.json` 追加逻辑）
 
 **修改内容：**
 
-- **Layout.astro Fancybox 配置更新**：
-  - `Toolbar.display.middle` 从 `[]` 改为 `['prev', 'counter', 'next']`，启用左右导航按钮和计数器
-  - 新增 `Carousel: { infinite: true }`，支持无限循环滑动
 - **galleries/[slug].astro 统一使用 Fancybox**：
   - `<button class="gallery-item">` 改为 `<a href={img.src.src} data-fancybox="gallery" data-caption={img.alt}>`
   - 删除自建 Lightbox dialog HTML（`<dialog id="lightbox">` 及其全部子元素）
@@ -998,11 +996,22 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 - **Layout.astro 删除自建 Lightbox 初始化脚本**：
   - 删除 `initGalleryLightbox()` 函数及其 Swup 兼容监听代码（约 70 行）
   - Fancybox 初始化函数 `initFancybox()` 已包含相册页图片绑定
+- **Layout.astro Fancybox 修复（Fancybox 6 源码验证）**：
+  - 移除无效 Toolbar 配置（`prev`/`counter`/`next` 不是 fancybox 6 的合法 toolbar 项，fancybox 6 仅支持 `infobar`/`close`/`slideshow`/`thumbs`；prev/next 箭头由 Carousel 组件自动渲染）
+  - 选择器从 `[data-fancybox="gallery"], [dataFancybox="gallery"]` 简化为 `[data-fancybox]`（`dataFancybox` camelCase 不是合法 HTML 属性，fancybox 的 `fromEvent` 用 `el.closest(n)` 匹配，只需 `data-fancybox` 即可同时覆盖文章页和相册页）
+  - `Fancybox.bind()` 前新增 `Fancybox.unbind(document.body)`（fancybox 6 的 `unbind` 会删除已注册选择器并移除 click 监听器，`bind` 重新注册时 size 为 1 会重新添加监听器——解决 Swup 切页后重复绑定问题）
+- **new-friend.js 补充 friend.json 写入**：
+  - 新增 `friendJsonFile` 路径常量（`public/js/friend.json`）
+  - 成功写入 `links.ts` 后，读取 `friend.json`、解析 JSON、向 `friends` 数组追加 `[name, link, avatar]` 元组、写回文件
+  - try/catch 包裹，写入失败仅 console.error 不中断流程
 
 **效果：**
 
 - 文章页：Markdown 图片点击放大 + 左右滑动 + 计数器 + 无限循环
 - 相册页：网格图片点击放大 + 左右滑动 + 计数器 + 无限循环 + 不需要等所有图片加载完
 - 两套系统统一为 Fancybox，代码更简洁
+- 新增友链时同时写入 `links.ts`（分类展示）和 `friend.json`（外部引用）
 
-**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 208 pages Complete；dist 核验：文章页和相册页均引用 `/fancybox/fancybox.umd.min.js`，相册页无 `<dialog id="lightbox">` 残留，`data-fancybox="gallery"` 属性正确注入。
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 208 pages Complete；dist 核验：文章页和相册页均引用 `/fancybox/fancybox.umd.min.js`，相册页无 `<dialog id="lightbox">` 残留，`data-fancybox="gallery"` 属性正确注入；`pnpm d` 推送成功（`7ec217a`）。
+
+**关键发现（Fancybox 6 源码分析）：** `Fancybox.bind(selector, options)` 在 `document.body` 上仅添加一次 click 监听器（`openers Map size === 1` 时）；`Fancybox.unbind(element)` 删除该容器的所有注册选择器并移除 click 监听器；`fromEvent` 用 `r.closest(n)` 匹配点击目标与注册选择器——因此 `data-fancybox` 属性名必须全小写，selector 用 `[data-fancybox]` 即可。
