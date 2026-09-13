@@ -976,3 +976,33 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 **验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 208 pages Complete（133.7s）；dist 核验：`/fancybox/fancybox.min.css` + `fancybox.umd.min.js` 存在、所有文章页引用本地 `/fancybox/` 路径（非 CDN）、galleries 页面含 `initGalleryLightbox` 常驻脚本 + `<dialog id="lightbox">` 结构保留、`initGalleryLightbox` 监听 `swup:page:view`/`astro:page-load`；`pnpm d` 推送成功（`bb906fe`）。
 
 **注意：** ①自动化工作流需在 GitHub 仓库 Settings > Secrets 配置 `TENCENTCLOUD_SECRET_ID/KEY`、`EDGEONE_ZONE_ID`、`BAIDU_SITE/TOKEN`，Variables 配置 `SITE_ORIGIN`、`SITEMAP_URL`；②首次运行百度推送建议设 `BAIDU_DRY_RUN=true` 干跑验证 URL 列表；③百度 token 如泄露需去搜索资源平台重置。
+
+### 2026-09-13 - 灯箱统一：文章 + 相册全部使用 Fancybox（删除自建 Lightbox）
+
+**背景：** 用户反馈两个灯箱问题：①文章页 Fancybox 有点击放大但没有左右滑动功能；②相册页 Lightbox 需要等所有图片加载完才能点击放大，现在点击功能消失。用户决定将文章和相册全部换成 Fancybox 统一处理。
+
+**修改文件：**
+
+- `src/layouts/Layout.astro`（Fancybox 配置更新）
+- `src/pages/galleries/[slug].astro`（删除自建 Lightbox，改用 Fancybox）
+
+**修改内容：**
+
+- **Layout.astro Fancybox 配置更新**：
+  - `Toolbar.display.middle` 从 `[]` 改为 `['prev', 'counter', 'next']`，启用左右导航按钮和计数器
+  - 新增 `Carousel: { infinite: true }`，支持无限循环滑动
+- **galleries/[slug].astro 统一使用 Fancybox**：
+  - `<button class="gallery-item">` 改为 `<a href={img.src.src} data-fancybox="gallery" data-caption={img.alt}>`
+  - 删除自建 Lightbox dialog HTML（`<dialog id="lightbox">` 及其全部子元素）
+  - 删除自建 Lightbox CSS 样式（`.lightbox` 相关全部规则）
+- **Layout.astro 删除自建 Lightbox 初始化脚本**：
+  - 删除 `initGalleryLightbox()` 函数及其 Swup 兼容监听代码（约 70 行）
+  - Fancybox 初始化函数 `initFancybox()` 已包含相册页图片绑定
+
+**效果：**
+
+- 文章页：Markdown 图片点击放大 + 左右滑动 + 计数器 + 无限循环
+- 相册页：网格图片点击放大 + 左右滑动 + 计数器 + 无限循环 + 不需要等所有图片加载完
+- 两套系统统一为 Fancybox，代码更简洁
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 208 pages Complete；dist 核验：文章页和相册页均引用 `/fancybox/fancybox.umd.min.js`，相册页无 `<dialog id="lightbox">` 残留，`data-fancybox="gallery"` 属性正确注入。

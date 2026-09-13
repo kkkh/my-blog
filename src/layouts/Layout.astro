@@ -242,76 +242,6 @@ const { title, description, image } = Astro.props
         })
       })()
     </script>
-    <script is:inline>
-      // 相册 Lightbox（galleries/[slug].astro）：body 级常驻脚本，
-      // Swup 切页后 main 内的 inline 脚本不会重新执行，在此统一初始化。
-      ;(function () {
-        function initGalleryLightbox() {
-          var grid = document.getElementById("gallery-grid")
-          var lightbox = document.getElementById("lightbox")
-          if (!grid || !lightbox) return
-          // 防重复绑定
-          if (grid.dataset.lightboxInit === "done") return
-          grid.dataset.lightboxInit = "done"
-
-          var items = Array.from(grid.querySelectorAll(".gallery-item"))
-          var lightboxImg = document.getElementById("lightbox-img")
-          var lightboxCaption = document.getElementById("lightbox-caption")
-          var lightboxCounter = document.getElementById("lightbox-counter")
-          var closeBtn = document.getElementById("lightbox-close")
-          var prevBtn = document.getElementById("lightbox-prev")
-          var nextBtn = document.getElementById("lightbox-next")
-          var current = 0
-
-          function open(idx) {
-            current = Math.max(0, Math.min(idx, items.length - 1))
-            var btn = items[current]
-            var img = btn.querySelector("img")
-            if (!img || !lightboxImg || !lightboxCaption || !lightboxCounter) return
-            lightboxImg.src = img.src
-            lightboxImg.alt = img.alt
-            lightboxCaption.textContent = img.alt
-            lightboxCounter.textContent = current + 1 + " / " + items.length
-            if (prevBtn) prevBtn.style.visibility = current === 0 ? "hidden" : "visible"
-            if (nextBtn) nextBtn.style.visibility = current === items.length - 1 ? "hidden" : "visible"
-            lightbox.showModal()
-            document.body.style.overflow = "hidden"
-          }
-          function close() {
-            lightbox.close()
-            document.body.style.overflow = ""
-          }
-          items.forEach(function (btn, idx) {
-            btn.addEventListener("click", function () { open(idx) })
-          })
-          if (closeBtn) closeBtn.addEventListener("click", close)
-          if (prevBtn) prevBtn.addEventListener("click", function () { open(current - 1) })
-          if (nextBtn) nextBtn.addEventListener("click", function () { open(current + 1) })
-          lightbox.addEventListener("click", function (e) {
-            if (!e.target.closest("img, button, .lightbox-caption, .lightbox-counter")) close()
-          })
-          document.addEventListener("keydown", function (e) {
-            if (!lightbox.open) return
-            if (e.key === "Escape") close()
-            if (e.key === "ArrowLeft") open(current - 1)
-            if (e.key === "ArrowRight") open(current + 1)
-          })
-        }
-        // 首次加载
-        if (document.readyState === "loading") {
-          document.addEventListener("DOMContentLoaded", initGalleryLightbox)
-        } else {
-          setTimeout(initGalleryLightbox, 100)
-        }
-        // Swup 切页后重新绑定
-        document.addEventListener("swup:page:view", function () {
-          setTimeout(initGalleryLightbox, 150)
-        })
-        document.addEventListener("astro:page-load", function () {
-          setTimeout(initGalleryLightbox, 150)
-        })
-      })()
-    </script>
     <!-- Fancybox 图片灯箱（本地化，避免 CDN 被跟踪防护拦截） -->
     <script is:inline src="/fancybox/fancybox.umd.min.js"></script>
     <script is:inline>
@@ -322,11 +252,14 @@ const { title, description, image } = Astro.props
           Toolbar: {
             display: {
               left: [],
-              middle: [],
+              middle: ['prev', 'counter', 'next'],
               right: ['close'],
             },
           },
           Thumbs: false,
+          Carousel: {
+            infinite: true,
+          },
         })
       }
       // 首次加载

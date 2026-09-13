@@ -46,11 +46,12 @@ const images = Object.entries(allImages)
     {images.length > 0 ? (
       <div class="gallery-grid" id="gallery-grid">
         {images.map((img, idx) => (
-          <button
+          <a
+            href={img.src.src}
             class="gallery-item group"
-            data-index={idx}
+            data-fancybox="gallery"
+            data-caption={img.alt}
             aria-label={`View image: ${img.alt}`}
-            type="button"
           >
             <img
               src={img.src.src}
@@ -61,7 +62,7 @@ const images = Object.entries(allImages)
             <div class="gallery-overlay">
               <span class="gallery-alt">{img.alt}</span>
             </div>
-          </button>
+          </a>
         ))}
       </div>
     ) : (
@@ -70,30 +71,7 @@ const images = Object.entries(allImages)
   </div>
 </PageLayout>
 
-<dialog id="lightbox" class="lightbox" aria-label="Image viewer" aria-modal="true">
-  <div class="lightbox-layout">
-    <div class="lightbox-topbar">
-      <span id="lightbox-counter" class="lightbox-counter"></span>
-      <button class="lightbox-btn" id="lightbox-close" aria-label="关闭" type="button">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="lightbox-main">
-      <button class="lightbox-btn lightbox-nav" id="lightbox-prev" aria-label="上一张" type="button">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="15 18 9 12 15 6"/></svg>
-      </button>
-      <div class="lightbox-figure">
-        <img id="lightbox-img" src="" alt="" class="lightbox-image" />
-        <p id="lightbox-caption" class="lightbox-caption"></p>
-      </div>
-      <button class="lightbox-btn lightbox-nav" id="lightbox-next" aria-label="下一张" type="button">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="9 18 15 12 9 6"/></svg>
-      </button>
-    </div>
-  </div>
-</dialog>
-
-<!-- Lightbox 初始化逻辑已提升到 Layout.astro body 级常驻脚本（Swup 切页后自动重新绑定） -->
+<!-- Lightbox 已统一使用 fancybox，删除自建 dialog -->
 
 <style>
   .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; list-style: none; padding: 0; margin: 0; }
@@ -106,18 +84,4 @@ const images = Object.entries(allImages)
   .gallery-overlay { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 0.75rem; background: linear-gradient(to top, rgb(0 0 0 / 0.6) 0%, transparent 60%); opacity: 0; transition: opacity 0.3s; }
   .gallery-item:hover .gallery-overlay { opacity: 1; }
   .gallery-alt { font-size: 0.75rem; color: white; text-shadow: 0 1px 3px rgb(0 0 0 / 0.5); }
-  .lightbox { position: fixed; inset: 0; max-width: 100vw; max-height: 100dvh; width: 100%; height: 100%; margin: 0; padding: 0; background: rgb(from var(--color-bg-primary) r g b / 0.95); border: none; z-index: 100; color: var(--color-text-primary); opacity: 0; transition: opacity 0.3s; display: flex; }
-  .lightbox[open] { opacity: 1; }
-  .lightbox:not([open]) { display: none; }
-  .lightbox::backdrop { background: transparent; }
-  .lightbox-layout { width: 100%; height: 100%; display: flex; flex-direction: column; }
-  .lightbox-topbar { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; flex-shrink: 0; }
-  .lightbox-counter { font-size: 0.875rem; letter-spacing: 0.1em; color: rgb(from var(--color-text-primary) r g b / 0.5); }
-  .lightbox-main { flex: 1; display: flex; align-items: center; justify-content: space-between; padding: 0 1rem 1.5rem; min-height: 0; gap: 1.5rem; }
-  .lightbox-figure { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; height: 100%; gap: 1.25rem; }
-  .lightbox-image { max-width: 100%; max-height: calc(100dvh - 10rem); width: auto; height: auto; object-fit: contain; border-radius: 6px; }
-  .lightbox-caption { font-size: 0.95rem; text-align: center; max-width: 50ch; line-height: 1.5; margin: 0; font-weight: 300; }
-  .lightbox-btn { background: rgb(from var(--color-text-primary) r g b / 0.03); border: 1px solid rgb(from var(--color-border) r g b / 0.15); color: rgb(from var(--color-text-primary) r g b / 0.7); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; padding: 0.75rem; border-radius: 50%; }
-  .lightbox-btn:hover { background: rgb(from var(--color-accent) r g b / 0.1); border-color: rgb(from var(--color-accent) r g b / 0.4); color: var(--color-accent); }
-  .lightbox-nav { flex-shrink: 0; }
 </style>
