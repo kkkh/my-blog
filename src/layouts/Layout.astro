@@ -245,17 +245,12 @@ const { title, description, image } = Astro.props
     <!-- Fancybox 图片灯箱（本地化，避免 CDN 被跟踪防护拦截） -->
     <script is:inline src="/fancybox/fancybox.umd.min.js"></script>
     <script is:inline>
-      // Fancybox 初始化：绑定文章图片点击事件，Swup 切页后重新绑定
+      // Fancybox 初始化：绑定文章/相册图片点击事件，Swup 切页后重新绑定
       function initFancybox() {
         if (typeof Fancybox === 'undefined') return
-        Fancybox.bind('[data-fancybox="gallery"], [dataFancybox="gallery"]', {
-          Toolbar: {
-            display: {
-              left: [],
-              middle: ['prev', 'counter', 'next'],
-              right: ['close'],
-            },
-          },
+        // 先解绑再重新绑定，避免 Swup 切页后重复注册
+        Fancybox.unbind(document.body)
+        Fancybox.bind('[data-fancybox]', {
           Thumbs: false,
           Carousel: {
             infinite: true,
