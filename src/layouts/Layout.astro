@@ -38,6 +38,8 @@ const { title, description, image } = Astro.props
     <link rel="stylesheet" href="/fclite/fclite.css" />
     <!-- Fancybox 图片灯箱样式（本地化，避免 CDN 被跟踪防护拦截） -->
     <link rel="stylesheet" href="/fancybox/fancybox.min.css" />
+    <!-- SimpleLightbox 样式（相册专用，与文章 Fancybox 独立） -->
+    <link rel="stylesheet" href="/simplelightbox/simple-lightbox.min.css" />
   </head>
   <body>
     <AuroraBackground />
@@ -244,31 +246,52 @@ const { title, description, image } = Astro.props
     </script>
     <!-- Fancybox 图片灯箱（本地化，避免 CDN 被跟踪防护拦截） -->
     <script is:inline src="/fancybox/fancybox.umd.min.js"></script>
+    <!-- SimpleLightbox（相册专用，与文章 Fancybox 独立） -->
+    <script is:inline src="/simplelightbox/simple-lightbox.min.js"></script>
     <script is:inline>
-      // Fancybox 初始化：绑定文章/相册图片点击事件，Swup 切页后重新绑定
+      // 判断当前页是否为相册页
+      function isGalleryPage() {
+        return !!document.querySelector('.gallery-grid')
+      }
+      // Fancybox 初始化：仅文章页，相册页由 SimpleLightbox 处理
       function initFancybox() {
-        if (typeof Fancybox === 'undefined') return
-        // 先解绑再重新绑定，避免 Swup 切页后重复注册
+        if (typeof Fancybox === 'undefined' || isGalleryPage()) return
         Fancybox.unbind(document.body)
         Fancybox.bind('[data-fancybox]', {
           Thumbs: false,
-          Carousel: {
-            infinite: true,
-          },
+          Carousel: { infinite: true },
         })
+      }
+      // SimpleLightbox 初始化：仅相册页
+      function initSimpleLightbox() {
+        if (typeof SimpleLightbox === 'undefined' || !isGalleryPage()) return
+        var grid = document.querySelector('.gallery-grid')
+        if (!grid || grid.dataset.slInit) return
+        grid.dataset.slInit = '1'
+        new SimpleLightbox('.gallery-grid a.gallery-item', {
+          captionsData: 'data-caption',
+          captionDelay: 0,
+          swipeClose: true,
+          scrollZoom: true,
+          doubleTapZoom: 2,
+        })
+      }
+      function initAllLightboxes() {
+        initFancybox()
+        initSimpleLightbox()
       }
       // 首次加载
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initFancybox)
+        document.addEventListener('DOMContentLoaded', initAllLightboxes)
       } else {
-        initFancybox()
+        initAllLightboxes()
       }
       // Swup 切页后重新绑定
       document.addEventListener('swup:page:view', function () {
-        setTimeout(initFancybox, 200)
+        setTimeout(initAllLightboxes, 200)
       })
       document.addEventListener('astro:page-load', function () {
-        setTimeout(initFancybox, 200)
+        setTimeout(initAllLightboxes, 200)
       })
     </script>
     <!-- LivePhoto 实况照片支持 -->
