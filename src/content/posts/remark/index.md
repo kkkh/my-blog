@@ -373,16 +373,22 @@ CRT 扫描高亮，适合强调关键词：
 
 ## Fancybox 图片灯箱
 
-主题集成了 [Fancybox](https://fancyapps.com/fancybox/) 图片灯箱，文章中的图片点击即可放大预览。
+主题集成了 [Fancybox](https://fancyapps.com/fancybox/) 作为**全站唯一图片预览组件**，文章图片和相册图片统一使用 Fancybox 灯箱。
 
 ### 自动生效
 
 所有文章中的图片 **自动启用** 灯箱功能，无需额外配置。点击图片会弹出全屏预览，支持：
 
-- 左右箭头/键盘切换图片
+- 左右箭头/键盘方向键切换图片
 - 手势缩放（移动端）
 - Escape 关闭
+- 灰色遮罩背景
 - 显示图片描述文字（Markdown `![描述](图片)` 中的描述）
+
+### 图片分组逻辑
+
+- **文章页**（`/posts/**`）：单篇文章内所有图片归为一组（`data-fancybox="article"`），可在弹窗内左右滑动浏览
+- **相册页**（`/galleries/**`）：同相册内所有图片归为一组（`data-fancybox="gallery"`），可在弹窗内左右滑动浏览
 
 ### 图片描述文字
 
@@ -393,6 +399,16 @@ CRT 扫描高亮，适合强调关键词：
 ```
 
 效果：图片下方会显示「这是一张示例图片的描述文字」作为图注。
+
+### 相册页使用
+
+相册页 `<a>` 标签会自动添加 `data-fancybox="gallery"` 属性，点击图片弹出灯箱而非跳转直链：
+
+```html
+<a href="原图.webp" data-fancybox="gallery" data-caption="图片描述">
+  <img src="缩略图.webp" loading="lazy" alt="图片描述" />
+</a>
+```
 
 ## LivePhoto 实况照片
 

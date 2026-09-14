@@ -1015,3 +1015,62 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 **验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 208 pages Complete；dist 核验：文章页和相册页均引用 `/fancybox/fancybox.umd.min.js`，相册页无 `<dialog id="lightbox">` 残留，`data-fancybox="gallery"` 属性正确注入；`pnpm d` 推送成功（`7ec217a`）。
 
 **关键发现（Fancybox 6 源码分析）：** `Fancybox.bind(selector, options)` 在 `document.body` 上仅添加一次 click 监听器（`openers Map size === 1` 时）；`Fancybox.unbind(element)` 删除该容器的所有注册选择器并移除 click 监听器；`fromEvent` 用 `r.closest(n)` 匹配点击目标与注册选择器——因此 `data-fancybox` 属性名必须全小写，selector 用 `[data-fancybox]` 即可。
+
+### 2026-09-13 - 相册灯箱改用 SimpleLightbox（修复 Fancybox 无法拦截相册直链跳转）& new-friend.js 补充 friend.json
+
+**背景：** 用户反馈相册页（`/galleries/[slug]`）点击图片直接跳转到图片直链（浏览器 navigate 到 .webp 文件），Fancybox 灯箱未弹出。根因：Fancybox 6 的 delegated click（`document.body` 上 `fromEvent`）在相册页未能拦截 `<a href="...webp">` 的原生点击——`preventDefault()` 未生效，浏览器在 Fancybox 处理前已触发导航。用户决定相册改用 SimpleLightbox（独立于 Fancybox，互不干扰）。
+
+**修改文件：**
+
+- `public/simplelightbox/simple-lightbox.min.css`（**新建**，SimpleLightbox 2.14.3 CSS，3.8KB）
+- `public/simplelightbox/simple-lightbox.min.js`（**新建**，SimpleLightbox 2.14.3 JS，48.6KB）
+- `src/layouts/Layout.astro`（head 追加 SimpleLightbox CSS；body 追加 SimpleLightbox JS + `initSimpleLightbox()`；`initFancybox()` 增加相册页排除逻辑）
+- `src/pages/galleries/[slug].astro`（移除 `<a>` 上的 `data-fancybox="gallery"` 属性，保留 `data-caption`）
+
+**修改内容：**
+
+- **SimpleLightbox 本地化**：从 unpkg 下载 CSS/JS 到 `public/simplelightbox/`，Layout head 引用 `/simplelightbox/simple-lightbox.min.css`，body 引用 `/simplelightbox/simple-lightbox.min.js`
+- **Fancybox 排除相册页**：`initFancybox()` 新增 `isGalleryPage()` 守卫——检测 `document.querySelector('.gallery-grid')` 存在则跳过 Fancybox 初始化，避免两个灯箱同时绑定同一 `<a>` 标签
+- **SimpleLightbox 初始化**：`initSimpleLightbox()` ——检测 `.gallery-grid` 存在且未初始化（`dataset.slInit` 防重复）→ `new SimpleLightbox('.gallery-grid a.gallery-item', { captionsData: 'data-caption', swipeClose: true, scrollZoom: true, doubleTapZoom: 2 })`
+- **统一 Swup 切页**：`initAllLightboxes()` 同时调用 `initFancybox()` + `initSimpleLightbox()`，监听 `swup:page:view` + `astro:page-load` 事件
+- **相册 HTML 简化**：`<a>` 标签移除 `data-fancybox="gallery"`（Fancybox 不再处理相册），保留 `data-caption` 供 SimpleLightbox 读取
+
+**效果：**
+
+- 文章页：Fancybox 灯箱（点击放大 + 左右滑动 + 无限循环）
+- 相册页：SimpleLightbox 灯箱（点击放大 + 左右滑动 + 滚轮缩放 + 双击放大）
+- 两套灯箱互不干扰：`isGalleryPage()` 守卫确保同一页面只激活一个
+- 新增友链时同时写入 `links.ts`（分类展示）和 `friend.json`（外部引用）
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 208 pages Complete；dist 核验：相册页引用 `/simplelightbox/simple-lightbox.min.css` + `/simplelightbox/simple-lightbox.min.js`，`<a>` 标签无 `data-fancybox`，有 `data-caption`；文章页仍引用 `/fancybox/` + `data-fancybox`；`pnpm d` 推送成功（`ad49fb6`）。
+
+### 2026-09-14 - 灯箱统一：移除 SimpleLightbox，全站 Fancybox 唯一组件 + 分组轮播
+
+**背景：** 用户要求全站统一使用 Fancybox 作为唯一图片预览组件，移除所有 SimpleLightbox 相关代码。同时修复两个 BUG：①相册页点击图片跳转直链导致返回后 CSS 丢失；②文章页图片点击无放大弹窗。要求图片分组逻辑：相册内图片共享一个轮播组（`data-fancybox="gallery"`），文章内图片各自独立分组（`data-fancybox="article"`）。
+
+**修改文件：**
+
+- `src/layouts/Layout.astro`（移除 SimpleLightbox，重写 Fancybox 初始化脚本）
+- `src/plugins/rehypeImage.js`（文章图片 `data-fancybox` 从 `"gallery"` 改为 `"article"`）
+- `src/pages/galleries/[slug].astro`（`<a>` 标签添加 `data-fancybox="gallery"`）
+- `public/simplelightbox/`（**整目录删除**）
+
+**修改内容：**
+
+- **Layout.astro head**：移除 `<link rel="stylesheet" href="/simplelightbox/simple-lightbox.min.css" />`，仅保留 Fancybox CSS
+- **Layout.astro body**：移除 `<script is:inline src="/simplelightbox/simple-lightbox.min.js">`；删除 `isGalleryPage()`、`initSimpleLightbox()`、`initAllLightboxes()` 函数；重写 `initFancybox()` 为全站统一初始化：
+  - `Fancybox.unbind(document.body)` 先销毁旧实例（防止 Swup 切页重复绑定）
+  - `Fancybox.bind('[data-fancybox]')` 绑定所有带属性元素（不再排除相册页）
+  - 配置：`touch: { vertical: true }`（左右滑动切换、垂直滑动关闭）、`Carousel: { infinite: true }`（无限循环）、`preload: 1`（预加载1张）、`Caption: { type: 'auto' }`（读取 alt 作为标题）、`Toolbar: { display: { infobar: true, close: true } }`（计数器+关闭按钮）、`Keyboard`（方向键切换）、`backdrop: true`（灰色遮罩）
+  - 事件监听：`DOMContentLoaded` + `swup:page:view` + `astro:page-load`
+- **rehypeImage.js**：`'data-fancybox': 'gallery'` → `'data-fancybox': 'article'`（文章图片独立分组）
+- **galleries/[slug].astro**：`<a>` 标签添加 `data-fancybox="gallery"`（同相册图片共享轮播组），保留 `data-caption`
+
+**效果：**
+
+- 相册页：点击图片 → Fancybox 弹窗（不跳转直链）→ 同相册内左右滑动轮播
+- 文章页：点击图片 → Fancybox 弹窗 → 单篇文章内图片独立轮播
+- 修复：相册点击不再跳转直链（`preventDefault()` 生效），返回后 CSS 不丢失
+- 修复：文章页图片点击正常弹出放大弹窗 + 左右滑动
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 构建成功（astro check + vite build 均无错误）。

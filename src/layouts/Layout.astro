@@ -38,8 +38,6 @@ const { title, description, image } = Astro.props
     <link rel="stylesheet" href="/fclite/fclite.css" />
     <!-- Fancybox 图片灯箱样式（本地化，避免 CDN 被跟踪防护拦截） -->
     <link rel="stylesheet" href="/fancybox/fancybox.min.css" />
-    <!-- SimpleLightbox 样式（相册专用，与文章 Fancybox 独立） -->
-    <link rel="stylesheet" href="/simplelightbox/simple-lightbox.min.css" />
   </head>
   <body>
     <AuroraBackground />
@@ -246,52 +244,42 @@ const { title, description, image } = Astro.props
     </script>
     <!-- Fancybox 图片灯箱（本地化，避免 CDN 被跟踪防护拦截） -->
     <script is:inline src="/fancybox/fancybox.umd.min.js"></script>
-    <!-- SimpleLightbox（相册专用，与文章 Fancybox 独立） -->
-    <script is:inline src="/simplelightbox/simple-lightbox.min.js"></script>
     <script is:inline>
-      // 判断当前页是否为相册页
-      function isGalleryPage() {
-        return !!document.querySelector('.gallery-grid')
-      }
-      // Fancybox 初始化：仅文章页，相册页由 SimpleLightbox 处理
+      // Fancybox 初始化：全站统一图片预览组件
       function initFancybox() {
-        if (typeof Fancybox === 'undefined' || isGalleryPage()) return
+        if (typeof Fancybox === 'undefined') return
+        // 先销毁旧实例，防止 Swup 切页后重复绑定
         Fancybox.unbind(document.body)
+        // 绑定所有带 data-fancybox 属性的元素
         Fancybox.bind('[data-fancybox]', {
-          Thumbs: false,
+          // 触摸支持：左右滑动切换图片，垂直滑动关闭
+          touch: { vertical: true },
+          // 轮播无限循环
           Carousel: { infinite: true },
+          // 预加载相邻1张图片
+          preload: 1,
+          // 读取 img 的 alt 作为图片标题
+          Caption: { type: 'auto' },
+          // 显示工具栏：关闭按钮 + 图片计数
+          Toolbar: { display: { infobar: true, close: true } },
+          // 按键盘方向键切换图片
+          Keyboard: { horizontal: true, vertical: true },
+          // 灰色遮罩背景
+          backdrop: true,
         })
-      }
-      // SimpleLightbox 初始化：仅相册页
-      function initSimpleLightbox() {
-        if (typeof SimpleLightbox === 'undefined' || !isGalleryPage()) return
-        var grid = document.querySelector('.gallery-grid')
-        if (!grid || grid.dataset.slInit) return
-        grid.dataset.slInit = '1'
-        new SimpleLightbox('.gallery-grid a.gallery-item', {
-          captionsData: 'data-caption',
-          captionDelay: 0,
-          swipeClose: true,
-          scrollZoom: true,
-          doubleTapZoom: 2,
-        })
-      }
-      function initAllLightboxes() {
-        initFancybox()
-        initSimpleLightbox()
       }
       // 首次加载
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initAllLightboxes)
+        document.addEventListener('DOMContentLoaded', initFancybox)
       } else {
-        initAllLightboxes()
+        initFancybox()
       }
-      // Swup 切页后重新绑定
+      // Swup/Astro 无刷新切页后重新绑定
       document.addEventListener('swup:page:view', function () {
-        setTimeout(initAllLightboxes, 200)
+        setTimeout(initFancybox, 200)
       })
       document.addEventListener('astro:page-load', function () {
-        setTimeout(initAllLightboxes, 200)
+        setTimeout(initFancybox, 200)
       })
     </script>
     <!-- LivePhoto 实况照片支持 -->

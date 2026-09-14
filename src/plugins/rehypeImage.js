@@ -23,7 +23,7 @@ function buildImage(node) {
   return h('img', {
     ...imgProps,
     loading: 'lazy',
-    'data-fancybox': 'gallery',
+    'data-fancybox': 'article',
     'data-caption': alt,
   })
 }
