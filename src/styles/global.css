@@ -385,7 +385,8 @@ html[data-theme='dark'] .aurora-container {
    滚动期间统一移除（玻璃退化为半透明纯色），滚动停止 120ms 后自动恢复。 */
 body.is-scrolling .card-glass,
 body.is-scrolling .sidebar-card,
-body.is-scrolling .cloud-badge {
+body.is-scrolling .cloud-badge,
+body.is-scrolling .comment-block {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }

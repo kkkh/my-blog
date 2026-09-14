@@ -32,8 +32,18 @@ const { title, description, image } = Astro.props
     <ThemeLoader />
     <AccentColorInjector />
     <PrintVersion />
-    <script is:inline async defer src="https://um.mingcy.cn/script.js" data-website-id="2dec6bd6-3aa9-49f5-a7ec-cb0c23c74f44"></script>
-    <script is:inline async defer src="https://cloud.umami.is/script.js" data-website-id="86be4560-edbf-468b-9897-813f94dfe6c3"></script>
+    <script
+      is:inline
+      async
+      defer
+      src="https://um.mingcy.cn/script.js"
+      data-website-id="2dec6bd6-3aa9-49f5-a7ec-cb0c23c74f44"></script>
+    <script
+      is:inline
+      async
+      defer
+      src="https://cloud.umami.is/script.js"
+      data-website-id="86be4560-edbf-468b-9897-813f94dfe6c3"></script>
     <!-- 朋友圈插件样式：放在 head 全局加载（Swup 切页不替换 head），避免 main 内 link 在切页后未加载导致卡片样式丢失 -->
     <link rel="stylesheet" href="/fclite/fclite.css" />
     <!-- Fancybox 图片灯箱样式（本地化，避免 CDN 被跟踪防护拦截） -->
@@ -41,7 +51,8 @@ const { title, description, image } = Astro.props
   </head>
   <body>
     <AuroraBackground />
-    <div class="site-grain hidden-mobile pointer-events-none fixed inset-0 z-0" aria-hidden="true"></div>
+    <div class="site-grain hidden-mobile pointer-events-none fixed inset-0 z-0" aria-hidden="true">
+    </div>
 
     <slot />
 
@@ -60,7 +71,7 @@ const { title, description, image } = Astro.props
     <script is:inline>
       // 滚动时临时移除 backdrop-filter（毛玻璃是滚动重绘卡顿的主因），
       // 滚动停止 120ms 后恢复玻璃效果；配合 body.is-scrolling 的 CSS 降级规则
-      (function () {
+      ;(function () {
         var ticking = false
         var timer = null
         var onScroll = function () {
@@ -232,6 +243,308 @@ const { title, description, image } = Astro.props
           setTimeout(boot, 800)
         }
         // Swup 4 替换后事件：page:view（@swup/astro 在替换完成后派发，同时触发 astro:page-load）
+        document.addEventListener('swup:page:view', function () {
+          setTimeout(boot, 150)
+          setTimeout(boot, 700)
+        })
+        document.addEventListener('astro:page-load', function () {
+          setTimeout(boot, 150)
+          setTimeout(boot, 700)
+        })
+      })()
+    </script>
+    <!-- 评论系统驱动控制器：Twikoo / Waline 双引擎切换 -->
+    <script is:inline>
+      // ────────────────────────────────────────────────
+      // 为什么控制器放在 Layout（而不是评论组件里）：
+      //   Swup 切页只替换 <main>、不重建 body，本脚本常驻单例；
+      //   main 内的 inline 脚本由 SwupScriptsPlugin 每次重跑，
+      //   若在组件内初始化，每切一篇文章就新建一个评论实例且旧的永不销毁。
+      // 两个引擎都按需懒加载：Twikoo 772KB / Waline 262KB，
+      //   只有用户真的切到对应系统才下载，首页与无评论页零成本。
+      // ────────────────────────────────────────────────
+      ;(function () {
+        var KEY = 'mcy-comment-driver'
+        var TWIKOO_ENV_ID = 'https://twikoo.mingcy.cn/'
+        var TWIKOO_JS = '/twikoo/twikoo.all.min.js'
+        var WALINE_SERVER = 'https://waline.mingcy.cn'
+        var WALINE_JS = '/waline/waline.js'
+        var WALINE_CSS = '/waline/waline.css'
+
+        var twikooScript = null
+        var walinePromise = null
+        var walineInstance = null
+        var walinePath = null
+        var shownDriver = null
+
+        function block() {
+          return document.getElementById('comment-block')
+        }
+
+        function readDriver() {
+          try {
+            return localStorage.getItem(KEY) === 'waline' ? 'waline' : 'twikoo'
+          } catch (e) {
+            return 'twikoo'
+          }
+        }
+
+        function writeDriver(driver) {
+          try {
+            localStorage.setItem(KEY, driver)
+          } catch (e) {}
+        }
+
+        // 懒加载指示器：只跟随当前展示的系统，避免用户已切走后误关别人的加载态
+        function setLoader(driver, on, error) {
+          if (driver !== shownDriver) return
+          var b = block()
+          var el = b ? b.querySelector('.driver-loading') : null
+          if (!el) return
+          if (on) {
+            el.hidden = false
+            var text = el.querySelector('.driver-loading__text')
+            if (text) {
+              text.textContent = error
+                ? error
+                : driver === 'waline'
+                  ? '正在加载 Waline 评论…'
+                  : '正在加载 Twikoo 评论…'
+            }
+            el.setAttribute('data-error', error ? '1' : '0')
+          } else {
+            el.hidden = true
+            el.removeAttribute('data-error')
+          }
+        }
+
+        function syncUI(driver) {
+          var b = block()
+          if (!b) return
+          shownDriver = driver
+          b.querySelectorAll('.comment-driver').forEach(function (el) {
+            // 用 data-engine 而非 id：Twikoo 的 Vue 2 $mount 会替换掉 #twikoo 节点，
+            // 替换后 id 就没了，而外层 data-engine 壳始终存在
+            el.classList.toggle('is-active', el.getAttribute('data-engine') === driver)
+          })
+          b.querySelectorAll('.driver-switch__btn').forEach(function (btn) {
+            var on = btn.getAttribute('data-driver') === driver
+            btn.classList.toggle('is-active', on)
+            btn.setAttribute('aria-selected', on ? 'true' : 'false')
+            btn.tabIndex = on ? 0 : -1
+          })
+          var track = b.querySelector('.driver-switch__track')
+          if (track) {
+            if (!window.__mcyCommentDriverSynced) {
+              // 首次同步：避免高亮块从默认位滑动到记忆位的多余动画
+              track.style.transition = 'none'
+            }
+            track.style.transform = driver === 'waline' ? 'translateX(100%)' : 'translateX(0)'
+            if (!window.__mcyCommentDriverSynced) {
+              requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                  track.style.transition = ''
+                })
+              })
+            }
+          }
+          window.__mcyCommentDriverSynced = true
+        }
+
+        // ─── Twikoo（本地化 /twikoo/，同源直连、不受第三方 CDN 拦截影响） ───
+        // Twikoo 用 Vue 2 的 $mount('#twikoo')，会把 #twikoo 节点整个替换掉；
+        // 因此幂等标记 data-ready 必须打在永不被替换的外层壳上。
+        function twikooSlot() {
+          return document.querySelector('#comment-block .comment-driver[data-engine="twikoo"]')
+        }
+
+        function initTwikoo() {
+          var slot = twikooSlot()
+          if (!slot || slot.getAttribute('data-ready')) return
+          if (typeof twikoo !== 'undefined' && twikoo.init) {
+            mountTwikoo()
+            return
+          }
+          if (twikooScript) return // 上一次请求还在飞行
+          setLoader('twikoo', true)
+          twikooScript = document.createElement('script')
+          twikooScript.src = TWIKOO_JS
+          twikooScript.onload = mountTwikoo
+          twikooScript.onerror = function () {
+            twikooScript = null
+            setLoader('twikoo', true, 'Twikoo 加载失败，请刷新重试')
+          }
+          document.head.appendChild(twikooScript)
+        }
+
+        function mountTwikoo() {
+          var slot = twikooSlot()
+          if (!slot || slot.getAttribute('data-ready')) return
+          if (typeof twikoo === 'undefined' || !twikoo.init) {
+            setLoader('twikoo', true, 'Twikoo 加载失败，请刷新重试')
+            return
+          }
+          slot.setAttribute('data-ready', '1')
+          setLoader('twikoo', false)
+          twikoo.init({ envId: TWIKOO_ENV_ID, el: '#twikoo' })
+        }
+
+        // ─── Waline（本地化 /waline/） ───
+        function ensureWalineCss() {
+          if (document.querySelector('link[data-waline-css]')) return
+          var link = document.createElement('link')
+          link.rel = 'stylesheet'
+          link.href = WALINE_CSS
+          link.setAttribute('data-waline-css', '1')
+          document.head.appendChild(link)
+        }
+
+        function destroyWaline() {
+          if (!walineInstance) return
+          try {
+            walineInstance.destroy()
+          } catch (e) {}
+          walineInstance = null
+          walinePath = null
+        }
+
+        function initWaline() {
+          var el = document.getElementById('waline')
+          if (!el) return
+          var path = window.location.pathname
+
+          if (walineInstance) {
+            // 实例仍挂在当前文档里：同页切回 → 复用；跨页 → update 换 path
+            if (walineInstance.el && document.contains(walineInstance.el)) {
+              if (walinePath !== path) {
+                walinePath = path
+                try {
+                  walineInstance.update({ path: path })
+                } catch (e) {}
+              }
+              setLoader('waline', false)
+              return
+            }
+            // 旧实例挂在已被 Swup 移除的节点上：销毁后重建到新容器
+            destroyWaline()
+          }
+
+          setLoader('waline', true)
+          ensureWalineCss()
+          if (walinePromise) {
+            walinePromise.then(mountWaline).catch(walineError)
+            return
+          }
+          walinePromise = import(WALINE_JS)
+            .then(function (mod) {
+              mountWaline(mod)
+            })
+            .catch(function () {
+              walinePromise = null
+              walineError()
+            })
+        }
+
+        function mountWaline(mod) {
+          var el = document.getElementById('waline')
+          if (!el) return
+          var init = (mod && (mod.init || (mod.default && mod.default.init))) || null
+          if (!init) {
+            walineError()
+            return
+          }
+          var path = window.location.pathname
+          try {
+            walineInstance = init({
+              el: '#waline',
+              path: path,
+              serverURL: WALINE_SERVER,
+              lang: 'zh-CN',
+              // 跟随本站 data-theme 切换明暗（Waline 原生支持选择器形式）
+              dark: '[data-theme="dark"]',
+              // 注意：requiredMeta 只认 nick / mail / link，写 'email' 会被静默丢弃
+              requiredMeta: ['nick', 'mail'],
+              pageSize: 20,
+              commentSorting: 'latest',
+              // 官方 Weibo 表情集，走 jsDelivr（站点已依赖 jsDelivr，避开 unpkg 301 与被拦截风险）
+              emoji: ['https://cdn.jsdelivr.net/npm/@waline/emojis@1.1.0/weibo'],
+              highlighter: true,
+              noCopyright: true,
+            })
+            walinePath = path
+          } catch (e) {
+            walineInstance = null
+            walineError()
+            return
+          }
+          setLoader('waline', false)
+        }
+
+        function walineError() {
+          walinePromise = null
+          setLoader('waline', true, 'Waline 加载失败，请刷新重试')
+        }
+
+        // ─── 切换入口 ───
+        function switchTo(driver) {
+          var b = block()
+          if (!b) return
+          if (driver !== 'twikoo' && driver !== 'waline') return
+          writeDriver(driver)
+          syncUI(driver)
+          if (driver === 'waline') initWaline()
+          else initTwikoo()
+        }
+
+        function boot() {
+          var b = block()
+          if (!b) {
+            // 无评论区的页面：释放上一页遗留的 Waline 实例
+            destroyWaline()
+            return
+          }
+          var driver = readDriver()
+          syncUI(driver)
+          if (driver === 'waline') initWaline()
+          else initTwikoo()
+        }
+
+        // 事件委托：只绑一次，Swup 切页后的新 DOM 自动生效
+        if (!window.__mcyCommentDriverBound) {
+          window.__mcyCommentDriverBound = true
+
+          document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.driver-switch__btn')
+            if (!btn || !btn.closest('#comment-block')) return
+            switchTo(btn.getAttribute('data-driver'))
+          })
+
+          document.addEventListener('keydown', function (e) {
+            var btn = e.target.closest('.driver-switch__btn')
+            if (!btn || !btn.closest('#comment-block')) return
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+            e.preventDefault()
+            var group = btn.closest('.driver-switch')
+            if (!group) return
+            var list = Array.prototype.slice.call(group.querySelectorAll('.driver-switch__btn'))
+            var idx = list.indexOf(btn)
+            var next =
+              e.key === 'ArrowRight'
+                ? (idx + 1) % list.length
+                : (idx - 1 + list.length) % list.length
+            switchTo(list[next].getAttribute('data-driver'))
+            list[next].focus()
+          })
+        }
+
+        // 首次加载
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', boot)
+        } else {
+          boot()
+          setTimeout(boot, 200)
+        }
+        // Swup 切页：新文章 = 新 path，需重建/更新评论实例
         document.addEventListener('swup:page:view', function () {
           setTimeout(boot, 150)
           setTimeout(boot, 700)

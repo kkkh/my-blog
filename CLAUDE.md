@@ -25,7 +25,7 @@
 - 前端：React 18、TypeScript、Tailwind CSS 3
 - 动画：Framer Motion、Swup
 - 状态管理：Jotai
-- 评论：Waline
+- 评论：Twikoo + Waline 双系统（评论区胶囊切换器 + 记忆选择，均本地化）
 - 搜索：Pagefind
 - 数学公式：KaTeX
 - 包管理：pnpm
@@ -76,6 +76,56 @@ astro-gyoza/
 - 迁移过程中不删除旧文件，只新增或修改本目录内文件
 
 ## 迁移记录
+
+### 2026-09-15 - 双评论系统（Twikoo + Waline）：胶囊切换器 + 记忆选择 + 双端本地化
+
+**背景：** 用户已部署 Twikoo（`twikoo.mingcy.cn`），另新建了 Waline 服务端（`waline.mingcy.cn`，Vercel，`X-Waline-Version: 1.41.6`），要求博客同时拥有两套评论系统，评论区上方可切换，样式符合本站科技感。
+
+**服务端实测（重要）：**
+
+- Waline v1.41 的评论接口是**单数** `GET {serverURL}/api/comment?path=…`（返回 `{errno:0,data:{count,data}}`）；`/api/comments`（复数）、`/api/pv`、`/api/verify`、`/api/emojis` 均 404 → **浏览量统计接口不存在**（不影响，本站已有 Umami），客户端不可开启 `pageview`
+- `@waline/client@3.15.2` 本地源码确认请求路径为 `${serverURL}/api/comment`，与服务端匹配；`init()` 返回 `{ el, update(opts), destroy() }`
+- **`requiredMeta` 会被白名单过滤**（只认 `nick`/`mail`/`link`）：写 `'email'` 会被**静默丢弃**，必须写 `'mail'`
+- **`dark` 支持选择器形式**：`dark: '[data-theme="dark"]'` 让 Waline 原生跟随本站明暗切换，无需额外桥接
+- 表情集从 `{folderUrl}/info.json` 读清单（非目录列表）；unpkg 目录 URL 会 301 到 `app.unpkg.com`，故改用 jsDelivr（站点已依赖该 CDN）
+- 本地 `@waline/client` 有 `waline.js`(262KB，自包含) 与 `slim.js`(62KB，**带裸 import 不可直接在浏览器用**) 两种构建，必须用 `waline.js`
+
+**修改文件：**
+
+- `src/components/comment/Comments.astro`（重写）
+- `src/components/comment/Twikoo.astro`（重写）
+- `src/components/comment/Waline.astro`（新建）
+- `src/layouts/Layout.astro`（新增 body 级评论驱动控制器）
+- `src/components/post/CommentFAB.astro`（滚动目标改当前激活引擎）
+- `src/pages/links/apply.astro`（一键导入模板适配双引擎 + `bare` 外壳）
+- `src/styles/global.css`（`.comment-block` 加入滚动毛玻璃降级名单）
+- `src/content/posts/remark/index.md`（新增「双评论系统」章节）
+- `public/waline/waline.js` + `waline.css`（新建，本地化）
+- `public/twikoo/twikoo.all.min.js`（新建，本地化）
+
+**修改内容：**
+
+- **Comments.astro 重写**：毛玻璃卡片外壳（`border-radius:1.25rem` + `backdrop-filter: blur(12px)` + 顶部 accent 流光线 `::before`）+ 标题左侧发光竖条 + **胶囊分段切换器**（`grid-template-columns:1fr 1fr`，高亮块 `--color-accent / 0.14` 填色 + 内描边 + 外辉光，`cubic-bezier(0.34,1.56,0.64,1)` 弹性滑动）+ `role=tablist` / `aria-selected` / ← → 方向键 + `prefers-reduced-motion` 降级 + 懒加载 spinner（失败时停止旋转并给出可读提示）。新增 `bare` prop：友链申请页嵌套在其它卡片内时去掉自身外壳
+- **Twikoo.astro 重写（关键 bug 修复）**：Twikoo 内部用 Vue 2 的 `new Vue({...}).$mount('#twikoo')`，而 **Vue 2 的 `$mount(el)` 会替换掉目标节点** → 替换后 `#twikoo` 的 id 与 class 一并消失，直接给 `#twikoo` 加 `display:none` 完全无效（用户看到的现象：切到 Waline 后 Twikoo 评论仍显示）。修复：多包一层 **`data-engine="twikoo"` 的外壳**，显隐控制与幂等标记 `data-ready` 都打在外壳上，**CSS 一律改用 `[data-engine='twikoo']` 作用域**（`#twikoo` 作用域在替换后全部失效，原主题样式也会随之丢失）
+- **Layout.astro 评论驱动控制器**（body 级常驻脚本，Swup 不重建 body → 单例；main 内的 inline 脚本由 SwupScriptsPlugin 每次重跑，写在组件内会导致每切一篇就新建实例且旧的永不销毁）：
+  - 选择写入 `localStorage['mcy-comment-driver']`，**下次打开自动沿用上次选择的系统**，默认 Twikoo
+  - **双引擎均懒加载**：只有真的切到对应系统才下载；loading 指示器只跟随当前展示的系统（`driver !== shownDriver` 时不动，避免误关别人的加载态）
+  - Twikoo：同源加载 `/twikoo/twikoo.all.min.js`，`data-ready` 打在外层壳上（`#twikoo` 会被替换）
+  - Waline：`import('/waline/waline.js')` 动态加载 + 注入本地 CSS，`noCopyright:true`、`highlighter:true`、`requiredMeta:['nick','mail']`、`pageSize:20`、`commentSorting:'latest'`
+  - **Swup 切页**：`swup:page:view` / `astro:page-load` 双事件 + 150ms/700ms 双定时器兜底；Waline 实例仍挂在当前文档 → 复用并 `update({path})`；实例挂在已被移除的节点 → `destroy()` 后重建到新容器；切到无评论区页面 → `destroy()` 释放
+  - 首次同步时临时关闭高亮块 transition，避免从默认位滑到记忆位的多余动画
+- **CommentFAB.astro**：显隐判断由 `#twikoo` 改为 `#comment-block`；点击滚动目标改为 `#comment-block .comment-driver.is-active`（否则选了 Waline 后会滚到隐藏元素）；补 `swup:page:view` 监听（原 `swup:content:replaced` 在 Swup 4 不存在）
+- **apply.astro**：`getTextarea()` 按 `data-engine` 取当前激活引擎的输入框（Twikoo → `.el-textarea textarea`，Waline → `#wl-edit`）；`MutationObserver` 从只监听 `#twikoo` 改为监听整个 `#comment-block`（懒加载下输入框可能由后切到的引擎注入）
+- **global.css**：`.comment-block` 加入 `body.is-scrolling` 的 `backdrop-filter: none` 降级名单
+- **体积对比（gzip 实测）**：Twikoo 772KB / 206KB gzip；Waline 262KB / 90KB gzip + CSS 4.8KB gzip。改动前每篇文章页都会从 jsDelivr **全量拉取 772KB Twikoo**；改动后按用户选择按需加载
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 208 pages Complete；dist 核验：`/twikoo/twikoo.all.min.js` 被引用、无 `<script>` 指向 jsDelivr 的 twikoo（`/tags/twikoo` 页内匹配到的是正文文本非脚本）、`data-engine="twikoo"` 外壳与 `id="waline" data-engine="waline"` 均存在、`public/twikoo` + `public/waline` 随构建拷贝。
+
+**注意：**
+
+- **Twikoo 无公开的销毁 API**（bundle 内无 `unmount`/`destroy` 全局导出），Swup 切页后旧实例的 JS 引用无法释放，只会随导航次数累积；这是 Twikoo 自身的限制，本次未引入回归（改动前每页同样会新建实例）
+- Waline 服务端未开启浏览量统计（`/api/pv` 404），客户端已确认未传 `pageview`，不会发出无效请求
+- 表情集仍需外网（jsDelivr `info.json`），被拦截时仅影响表情面板，不影响评论主体
 
 ### 2026-08-16 - Umami 浏览量尾斜杠归一化累计 & 页脚游客数改曝光次数
 
