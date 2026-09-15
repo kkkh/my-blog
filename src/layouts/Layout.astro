@@ -358,6 +358,38 @@ const { title, description, image } = Astro.props
           return document.querySelector('#comment-block .comment-driver[data-engine="twikoo"]')
         }
 
+        // ─── 把 Twikoo 运行时注入的 <style> 挪出 <head> ───
+        // Twikoo 的 CSS 不是文件：twikoo.all.min.js 内是 webpack vue-style-loader
+        // 内联样式，脚本首次加载时一次性往 document.head 注入 16 个 <style>
+        // （v1.7.19 实测共 37KB），之后无论再调用多少次 twikoo.init() 都不会重新
+        // 注入（webpack 模块已缓存）。
+        // 而 @swup/astro 默认开启 updateHead（@swup/head-plugin），它挂在
+        // before("content:replace")：每次切页都会把 <head> 里「下一页静态 HTML 的
+        // head 中不存在」的元素全部 removeChild。Twikoo 的 16 个 <style> 正是
+        // 运行时注入、静态 HTML 里不存在 → 切页一次就被删掉且永不补回，
+        // 于是第二篇文章起评论样式全部丢失（首篇正常，之后永久失效）。
+        // 识别只能靠内容：vue-style-loader 注入的 <style> 连 data-vue-ssr-id
+        // 属性都没有（bundle 内 ssrId 为假值）。且这 16 个片段并不都属于 twikoo 自己的
+        // 命名空间 —— 实测分布：
+        //   .tk-*   twikoo 本体（评论列表 / 提交 / 分页 / 管理面板…）
+        //   .el-*   Element UI（按钮 / 文本域 / 标签…，约占 49% 体积）
+        //   OwO     表情面板
+        // 只匹配 tk-comment 只能覆盖 15% 的样式，三个特征必须都认。
+        // <style> 挪到 <body> 后依然全文档生效，且不属 head 清理范围；
+        // 本站 head 内的内联样式只有随机强调色变量（不含 tk-/el-/OwO），不会误伤。
+        // 函数幂等，重复调用只是空转。
+        function adoptTwikooStyles() {
+          var styles = document.head.querySelectorAll('style')
+          for (var i = 0; i < styles.length; i++) {
+            var st = styles[i]
+            var css = st.textContent || ''
+            if (css.indexOf('tk-') === -1 && css.indexOf('el-') === -1 && css.indexOf('OwO') === -1) {
+              continue
+            }
+            document.body.appendChild(st)
+          }
+        }
+
         function initTwikoo() {
           var slot = twikooSlot()
           if (!slot || slot.getAttribute('data-ready')) return
@@ -369,7 +401,12 @@ const { title, description, image } = Astro.props
           setLoader('twikoo', true)
           twikooScript = document.createElement('script')
           twikooScript.src = TWIKOO_JS
-          twikooScript.onload = mountTwikoo
+          twikooScript.onload = function () {
+            // CSS 就是脚本加载这一刻注入 head 的，必须马上挪走；
+            // 一旦等到 Swup 切页之后才挪，@swup/head-plugin 已经删掉了
+            adoptTwikooStyles()
+            mountTwikoo()
+          }
           twikooScript.onerror = function () {
             twikooScript = null
             setLoader('twikoo', true, 'Twikoo 加载失败，请刷新重试')
@@ -386,6 +423,8 @@ const { title, description, image } = Astro.props
           }
           slot.setAttribute('data-ready', '1')
           setLoader('twikoo', false)
+          // 兜底（幂等）：覆盖 onload 之外的所有挂载路径
+          adoptTwikooStyles()
           twikoo.init({ envId: TWIKOO_ENV_ID, el: '#twikoo' })
         }
 
@@ -396,7 +435,11 @@ const { title, description, image } = Astro.props
           link.rel = 'stylesheet'
           link.href = WALINE_CSS
           link.setAttribute('data-waline-css', '1')
-          document.head.appendChild(link)
+          // 挂到 <body> 而非 <head>：<link> 放 body 是合法 HTML5，
+          // 而 @swup/head-plugin 只清理 <head> 子节点 —— 放 head 里每个 Swup 切页
+          // 都会把它删掉（ensureWalineCss 下次虽会重挂自愈），
+          // 中间仍会出现 150~300ms 的 Waline 无样式窗口
+          document.body.appendChild(link)
         }
 
         function destroyWaline() {

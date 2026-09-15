@@ -41,9 +41,20 @@ const wordCountStr = (wordCount / 1000).toFixed(1) + 'k'
       <span class="select-none opacity-50">|</span>
       <SiteVisitors />
     </div>
-    <div>
+    <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
       <Link href="https://beian.miit.gov.cn/" data-no-swup>
         <span>豫ICP备2026043588号</span>
+      </Link>
+      <span class="select-none opacity-50">|</span>
+      <Link href="https://beian.mps.gov.cn/#/index?code=65010602001220" data-no-swup>
+        <img
+          src="/beian/ghs.png"
+          alt="公安备案图标"
+          width="20"
+          height="20"
+          class="inline-block align-[-3px]"
+        />
+        <span>新公网安备65010602001220号</span>
       </Link>
     </div>
   </div>

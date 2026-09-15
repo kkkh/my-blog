@@ -77,6 +77,43 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-09-15 22:20 - 页脚公安备案：豫 ICP + 新公网安备同行并排 & 备案图标本地化
+
+**背景：** 用户要为页脚补充公安联网备案信息（`新公网安备65010602001220号`），与已有的豫 ICP 备案**同一行**展示；并指出备案图标「可以获取到、可以添加」。原页脚只有一枚 ICP 备案链接（`src/components/footer/Footer.astro` 44–47 行），无公安备案、无图标。
+
+**图标获取与瘦身（实测）：**
+
+- 官方图标 `https://www.beian.gov.cn/img/ghs.png`：20×20 RGBA，文件 **19256 B**
+- 其中 **15176 B（79%）是 `iTXt` 块里的 Adobe XMP 元数据**（keyword `XML:com.adobe.xmp`，政府站点编辑器自动写入），与显示完全无关
+- 剥离后 **4068 B**，块序列 `IHDR → pHYs → iCCP → cHRM → IDAT → IEND`，逐块 CRC 校验全部正确
+- `IDAT` 解压数据 SHA256 与官方原图**逐字节一致**（`06751fdb0d2a5f8892bce660`）→ 图像零损失，仅丢元数据
+- 本地化理由：与本仓库 twikoo / waline / fclite / fancybox 同款做法。实测 `www.beian.gov.cn` 直连返回 `Connection was reset`，外链图标在跟踪防护/断网下会裂图
+- 核验链接 `https://beian.mps.gov.cn/#/index?code=65010602001220` 实测 200；公安部下发的传统格式 `http://www.beian.gov.cn/portal/registerSystemInfo?recordCode=65010602001220` 会 302 到前者。方案中默认采用前者，用户确认执行 → 采用前者
+
+**修改文件：**
+
+- `public/beian/ghs.png`（**新建**，4068 B，公安部国徽盾标）
+- `src/components/footer/Footer.astro`
+
+**修改内容：**
+
+- Footer 备案号行 `<div>` → `<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">`：
+  - 原 ICP 链接原样保留（`https://beian.miit.gov.cn/`）
+  - 中间插竖线分隔符 `<span class="select-none opacity-50">|</span>`（沿用页脚运行天数/字数行的分隔风格）
+  - 新增公安备案链接 + 图标：`<img src="/beian/ghs.png" alt="公安备案图标" width="20" height="20" class="inline-block align-[-3px]">` + `<span>新公网安备65010602001220号</span>`
+  - `flex-wrap`：窄屏放不下自动换行，不撑破页脚
+  - `width/height` 写死避免 CLS；`align-[-3px]` 让 20px 图标贴住 14px 文字基线
+  - 外链由 `Link.astro` 自动加 `target="_blank" rel="noopener noreferrer"`；`data-no-swup` 沿用 ICP 链接写法（跳出站点不做 SPA 切换）
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 210 pages Complete；dist 核验：`dist/beian/ghs.png` 存在（4068 B），209 个 HTML 中 **208 个**引用 `/beian/ghs.png`（唯一例外 `404.html` —— 该页用基础 `Layout.astro`，本身就不含 Footer，与本次改动无关），两枚备案号确实在同一个 `flex` 容器内；图标渲染正常（非空、非裂图）。
+
+**注意：**
+
+- 公安部备案图标本体只有 **20×20**，不要再放大成高清版（会糊），需要更大尺寸只能换设计
+- 日后要改备案编号，只改 `Footer.astro` 里的链接 `code=` 参数与 `<span>` 文案两处
+- `ghs.png` 无 hash，改内容后部署需留意浏览器缓存
+- 本次仅动 `Footer.astro` 一行容器与新增一个静态图标；`config.json`、`astro.config.js`、`package.json` 未改，无新增依赖
+
 ### 2026-09-15 - 双评论系统（Twikoo + Waline）：胶囊切换器 + 记忆选择 + 双端本地化
 
 **背景：** 用户已部署 Twikoo（`twikoo.mingcy.cn`），另新建了 Waline 服务端（`waline.mingcy.cn`，Vercel，`X-Waline-Version: 1.41.6`），要求博客同时拥有两套评论系统，评论区上方可切换，样式符合本站科技感。
