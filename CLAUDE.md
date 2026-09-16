@@ -77,6 +77,40 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-09-16 - Twikoo 昵称/身份标签/点赞行视觉重做 & 卸载 @vercel/speed-insights
+
+**背景：** 用户反馈上一版 Twikoo CSS 三处问题：①第二行点赞/踩/回复是灰字，应该有强调色；②昵称后面的身份标签不美观、「丢掉了」；③要求参考 `blog.weasel6.cn` 的用户名与标签样式，做成本站独有的科技感。同批还要求卸载 @Speed Insights 插件。
+
+**参考实现（`blog.weasel6.cn/assets/css/twikoo-custom.css` 实测）：** `.tk-action-link` 与 `.tk-action-icon` 全部走 `var(--tk-accent)`（不是灰色）；身份标签是**实心渐变药丸 + 深色文字**，并靠 `overflow:visible` + `::before` data-URI SVG 把徽标探出药丸上沿（站长=猫咪、邻居=皇冠）。
+
+**关键事实（1.7.19 官方 bundle 逐字核对，非推测）：**
+
+- 标签渲染为纯文本 `<span class="tk-tag tk-tag-green">站长</span>`，**bundle 内没有任何标签图标**——参考站的图标全是 CSS 画的，所以要复刻必须自己写 SVG data URI。
+- 官方 `.tk-action-count { height:1.5rem; line-height:1.5rem }` 是个 24px 高的固定盒子，会把第二行整体撑高、按钮纵向不再居中——这就是「第二行不好看」的根因之一。
+- 官方 `.tk-actions { display:none }` + `.tk-comment:hover .tk-actions { display:inline }` 是悬停才显示的管理按钮；上一版用 `display:inline-flex !important` 强制常显，站长操作按钮会一直露出（已修）。
+
+**修改文件：**
+
+- `src/components/comment/Twikoo.astro`（重写 `<style is:global>`，容器结构与两行布局不变）
+- `src/layouts/Layout.astro`（删 SpeedInsights import + `<SpeedInsights />`）
+- `src/components/head/AccentColorInjector.astro`（注释同步）
+- `package.json` / `pnpm-lock.yaml`（`pnpm remove @vercel/speed-insights`）
+
+**修改内容：**
+
+- **昵称**：`.tk-nick-link` 走 `var(--color-accent)` + 波浪下划线（`underline wavy`，45% accent 色，1.5px 粗，offset 4px）+ `text-shadow` accent 辉光；悬停加粗辉光并上浮 1px。中文防竖排的 `writing-mode:horizontal-tb` 保留。
+- **身份标签**：基类改为实心渐变药丸（`color:#0b1020`、`font-weight:800`、`letter-spacing:.04em`、`overflow:visible`、`border:0`）；四个变体各是「斜向高光条 + 纯色渐变」双层背景（`background-size:220% 100%,100% 100%`），共用一条 `@keyframes mcy-tag-sweep` 只移动背景位置（第二层尺寸 100%，位置变化对它不可见）→ 只有高光在扫。徽标用 `::before` 探出上沿（`top:-.85em`、`1.15em` 见方、`translateX(-50%)`、`pointer-events:none`）：站长=星形、置顶=图钉、待审核=时钟、`tk-tag-blue`=皇冠。图标 SVG 全部写成无空格路径（逗号分隔坐标、`viewBox='0,0,24,24'`），避免 data URI 编码被压缩器改写。
+- **站长标签跟随机强调色**：渐变两端是 `color-mix(in srgb, var(--color-accent) 90%, #000)` 与 `color-mix(... 45%, #fff)`，带 accent 外发光——每页随机色不同，标签颜色随之变；置顶/待审核/邻居仍用固定红橙/琥珀/蓝紫三色以区分语义。
+- **第二行按钮**：`.tk-action-link` 默认即 accent 色 + `9%` accent 底 + `30%` accent 描边药丸；悬停/聚焦整颗变实心 accent + 外发光；`.tk-liked` 实心 accent 白字，`.tk-disliked` 实心 `#f56c6c` 白字；图标 `color:currentColor`（不再固定 `#409eff`）；`.tk-action-count` 归零成 `height:auto;line-height:1.2` + `tabular-nums`。
+- **修 bug**：`.tk-actions` 恢复「默认 `display:none` + 悬停 `inline-flex`」；站长操作按钮单独做成小药丸。
+- **动效降级**：`prefers-reduced-motion` 里额外关掉四个标签的 `mcy-tag-sweep`。
+
+**卸载 Speed Insights：** 删除 `Layout.astro` 的 import 与 `<SpeedInsights />`、`package.json` 依赖，`pnpm remove` 同步锁文件；保留 `@vercel/analytics`。
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints（119 files）；`pnpm exec astro build` 210 pages Complete；产物核验：新 CSS 落在 `dist/_astro/_spec_.egmn4Oh5.css`（24718 B），`mcy-tag-sweep` 5 处、四色标签各 3 处、`220% 100%` 4 处、4 段 `data:image/svg+xml` 徽标、`overflow:visible!important` / `height:auto!important` / `display:none!important` / `underline wavy` / `currentColor!important` 均在；`dist` 全量 HTML/CSS/JS 中 `speed-insights` 匹配数 **0**。
+
+**注意：** ①标签徽标探出上沿依赖 `.tk-comment { padding:1rem }` 留出的空间，缩进/间距改动时留意不要把它裁进 `.tk-replies { overflow:hidden }` 边界；②标签颜色里唯一「随页变」的是站长色，其余三色是固定语义色，别当成 bug；③Twikoo 云端的 `MASTER_TAG` 文案由 `twikoo.mingcy.cn` 服务端配置，本地只负责样式。
+
 ### 2026-09-15 22:20 - 页脚公安备案：豫 ICP + 新公网安备同行并排 & 备案图标本地化
 
 **背景：** 用户要为页脚补充公安联网备案信息（`新公网安备65010602001220号`），与已有的豫 ICP 备案**同一行**展示；并指出备案图标「可以获取到、可以添加」。原页脚只有一枚 ICP 备案链接（`src/components/footer/Footer.astro` 44–47 行），无公安备案、无图标。

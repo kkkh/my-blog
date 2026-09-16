@@ -493,14 +493,16 @@ CRT 扫描高亮，适合强调关键词：
 
 两套系统都**按需加载**，只有真的切到对应系统才下载，首页与无评论区页面零成本：
 
-| 引擎   | 来源               | 体积（gzip） |
-| ------ | ------------------ | ------------ |
-| Twikoo | `/twikoo/`（本地） | 约 206 KB    |
-| Waline | `/waline/`（本地） | 约 90 KB     |
+| 引擎   | 来源                       | 体积（gzip） |
+| ------ | -------------------------- | ------------ |
+| Twikoo | jsDelivr CDN（unpkg 备源） | 约 206 KB    |
+| Waline | `/waline/`（本地）         | 约 90 KB     |
 
 加载过程中评论区内显示 loading 圈与文字；脚本加载失败（例如被浏览器跟踪防护拦截）时给出可读提示，不会白屏。
 
-> 两个客户端均已**本地化**到 `public/` 目录，同源直连，不依赖第三方 CDN，避免被 Edge 等浏览器的跟踪防护拦截导致评论不可用。
+> **来源策略**：Twikoo 走官方 CDN（jsDelivr 主源 + unpkg 备源），加载失败自动切换下一个源，两个源都失败才提示用户；Waline 仍**本地化**到 `public/waline/`，同源直连。
+>
+> 为什么 Twikoo 改用 CDN：之前本地那份是被 Prettier 重排过的（官方包 772 KB 被格式化膨胀到 1.63 MB），而且本地副本与云端云函数的版本容易漂移；CDN 上锁死 `twikoo@1.7.19`，与云函数版本完全一致。代价是它属于第三方资源，可能被浏览器跟踪防护拦截，所以保留了二级回退源 + 失败提示。
 
 ### Swup 无刷新切页
 
@@ -516,3 +518,81 @@ Swup 只替换 `<main>`、不重建 `<body>`，因此评论初始化逻辑统一
 - `dark: '[data-theme="dark"]'` 让 Waline 原生跟随本站明暗切换
 - `highlighter: true` 支持评论内代码高亮
 - 表情集使用官方 Weibo 表情，走 jsDelivr（站点已依赖该 CDN）
+
+## Twikoo 评论视觉：两行评论头 + 流光身份标签
+
+Twikoo 的默认样式是 Element UI 那一套（灰底细边框、蓝色按钮、标签贴着昵称挤在一行）。本站在 `src/components/comment/Twikoo.astro` 里做了一层作用域覆盖，改造成暗黑液态玻璃风格。
+
+### 两行评论头
+
+| 行     | 内容                                        |
+| ------ | ------------------------------------------- |
+| 第一行 | 头像 + 昵称 + 身份标签 + 发布时间           |
+| 第二行 | 点赞 / 踩 / 回复 按钮（与第一行用细线隔开） |
+
+靠 `flex-wrap` + `flex-basis: 100%` 实现，**不改任何 Twikoo 的渲染逻辑**；子回复嵌套复用同一套规则，自动也是两行，左侧缩进从 1rem 收窄到 0.55rem 并保留 accent 竖线。
+
+### 昵称：强调色 + 波浪下划线
+
+- 昵称颜色跟随本页**随机强调色**（`var(--color-accent)`），带一圈同色辉光，悬停时辉光变亮并上浮 1px
+- 有主页链接的昵称额外加**波浪下划线**，一眼看出可点击；无链接的昵称不画线
+- 中文昵称强制 `writing-mode: horizontal-tb` + `word-break: normal`，窄屏上按整词换行，不会逐字竖排
+
+### 身份标签：实心渐变药丸 + 探出的徽标
+
+标签不是描边小字，而是**实心渐变药丸 + 深色文字**，并有一枚 SVG 徽标从药丸上沿探出来：
+
+| 标签      | 触发条件                | 配色                     | 徽标 |
+| --------- | ----------------------- | ------------------------ | ---- |
+| 站长      | `MASTER_TAG`            | 跟随随机强调色的流光渐变 | 星形 |
+| 置顶      | `COMMENT_TOP_TAG`       | 固定红橙渐变             | 图钉 |
+| 待审核    | `COMMENT_REVIEWING_TAG` | 固定琥珀渐变             | 时钟 |
+| 邻居/备用 | `tk-tag-blue`           | 固定蓝紫渐变             | 皇冠 |
+
+流光做法：两层背景叠在一起——上层是斜向白色高光条（`background-size: 220% 100%`），下层是纯色渐变（`100% 100%`），共用一条 keyframe 只移动 `background-position`。下层尺寸是 100%，位置移动对它不可见，于是**只有高光在扫，颜色本身不漂移**：
+
+```css
+.tag {
+  background:
+    linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.35) 50%, transparent 65%),
+    linear-gradient(115deg, #5ab8ff, #2f86ff 55%, #6d5efc);
+  background-size:
+    220% 100%,
+    100% 100%;
+  animation: sweep 3.4s linear infinite;
+}
+@keyframes sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+```
+
+徽标是 CSS `::before` 画的 data-URI SVG（`top: -0.85em` + `overflow: visible`），Twikoo 官方包里没有这些图标。SVG 路径写成逗号分隔的无空格形式（坐标、`viewBox='0,0,24,24'`），避免被压缩器改写编码。
+
+### 点赞 / 踩 / 回复：强调色药丸
+
+- 默认就是强调色描边 + 9% 强调色底，不再是一排灰字
+- 悬停整颗变**实心强调色 + 外发光**并上浮 1px
+- 已点赞 = 实心强调色白字；已踩 = 实心红（`#f56c6c`）白字
+- 计数数字取消官方那套 `height / line-height: 1.5rem` 的固定盒子——那个 24px 高的盒子会把整行撑高、按钮不再垂直居中，改成 `tabular-nums` 等宽数字
+- 站长悬停在评论上才出现的「加精 / 屏蔽」操作按钮走同款小药丸，默认 `display: none`
+
+### 为什么样式写在 `[data-engine='twikoo']` 而不是 `#twikoo`
+
+Twikoo 用 Vue 2 的 `$mount('#twikoo')` 初始化，而**Vue 2 的 `$mount(el)` 会把目标节点整个替换掉**——替换后 `#twikoo` 这个 id 连同 class 一起消失，所以：
+
+1. 容器多包一层永不替换的壳 `<div data-engine="twikoo"><div id="twikoo"></div></div>`
+2. 显隐控制与幂等标记（`data-ready`）都打在外壳上
+3. CSS 选择器一律以 `[data-engine='twikoo']` 作用域
+
+另外 Twikoo 的 CSS 不是文件，是脚本运行时注入 `<body>` 的，会排在本站样式后面，因此覆盖时必须带 `!important`。
+
+### 评论区内适配
+
+- ≤640px：头像从 40px 缩到 32px，卡片内边距收窄，标签与按钮内边距压缩、字号下调
+- 正文图片 `max-width: 100%` 跟随容器收缩，代码块自动折行，不产生横向滚动
+- `prefers-reduced-motion` 下，标签流光、按钮过渡、卡片过渡全部关闭

@@ -5,7 +5,7 @@ import { color as themeColor } from '@/config.json'
 <!--
   随机强调色注入（is:inline + define:vars）
   ─────────────────────────────────────────────
-  原实现为打包脚本，与 Vercel SpeedInsights/Analytics 等共享同一模块；
+  原实现为打包脚本，与 Vercel Analytics 等共享同一模块；
   该共享模块在模块作用域执行 customElements.define(...)，任一环节出错
   会导致整个模块失效、注入器被"连坐"，随机色完全消失。
   现改为 HTML 内联脚本：HTML 解析期同步执行、零模块依赖、不受任何打包影响；
