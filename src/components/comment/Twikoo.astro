@@ -1,8 +1,9 @@
 <!--
   Twikoo 评论容器 + 视觉覆盖
   ───────────────────────────────────────────────
-  初始化已移出到 Layout.astro 的「评论驱动控制器」按需执行（与 Waline 共享切换器）；
-  此处只留容器与样式。
+  · 脚本源：官方 CDN（jsDelivr 主源 / unpkg 备源，见 Layout.astro 的 TWIKOO_JS），
+    本地 public/twikoo/ 已删除；初始化仍在 Layout.astro 的「评论驱动控制器」按需执行
+    （与 Waline 共享胶囊切换器），本文件只留容器与样式。
 
   ⚠️ 关键：必须多包一层 data-engine="twikoo" 的外壳。
   Twikoo 内部用 Vue 2 的 `new Vue({...}).$mount('#twikoo')`，
@@ -11,91 +12,406 @@
     2. 所有 #twikoo 作用域的样式全部失效。
   所以：显隐与 data-ready 标记都放在外层永不被替换的壳上，
         CSS 也一律以 [data-engine='twikoo'] 作用域，而非 #twikoo。
+
+  两行评论头（纯 CSS，不改任何 Twikoo 交互逻辑）：
+    第一行 = 头像 + 昵称 + 标签 + 日期   → .tk-main > .tk-row > .tk-meta 占满整行
+    第二行 = 点赞 / 回复                 → .tk-main > .tk-row > .tk-action 占满整行
+    子回复 .tk-replies 天然复用同一套结构（嵌套的 .tk-comment 走同样规则），
+    只需把它的左侧缩进从 1rem 减到 0.55rem，保留轻微层级感。
+
+  为什么大量 !important：Twikoo 的 CSS 不是文件，而是 twikoo.all.min.js 运行时注入
+  <body> 的（Layout.astro 的 adoptTwikooStyles 会把它们挪出 <head> 防 Swup 清理），
+  本组件样式在 <head>、顺序在前 —— 同等特异性后写的赢，必须用 !important 压住。
+
+  与 Fancybox 的关系：选择器全部锁在 [data-engine='twikoo'] 内，
+  不出现 .fancybox / [data-fancybox]，也不覆盖 z-index / position:fixed，
+  与文章/相册灯箱零冲突（Twikoo 自带的 tk-lightbox 保持官方实现）。
 -->
 <div class="comment-driver is-active" data-engine="twikoo">
   <div id="twikoo"></div>
 </div>
 
 <style is:global>
-  [data-engine='twikoo'] {
-    font-family: inherit;
-  }
+  /* ═══════════════════════════════════════════════════════════
+     第一套 CSS：Twikoo 评论样式（暗黑液态玻璃 · 两行评论头 · 移动端优先）
+     ═══════════════════════════════════════════════════════════ */
+
+  /* ── 0. 字体继承：Twikoo 自带 element-ui 样式会写死系统字体栈 ── */
+  [data-engine='twikoo'],
   [data-engine='twikoo'] * {
     font-family: inherit;
   }
-  [data-engine='twikoo'] .el-textarea textarea {
-    border: 1px solid color-mix(in srgb, var(--color-border-primary) 30%, transparent) !important;
+
+  /* ── 1. 列表头部：计数 + 排序 ── */
+  [data-engine='twikoo'] .tk-comments-title {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 0.4rem 0.9rem !important;
+    padding: 0.8rem 0.4rem !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border-primary) 35%, transparent) !important;
+    margin-bottom: 0.25rem !important;
+  }
+  [data-engine='twikoo'] .tk-comments-count {
+    color: var(--color-accent) !important;
+    font-weight: 700 !important;
+    font-size: 0.88rem !important;
+  }
+  [data-engine='twikoo'] .tk-sort-item {
+    color: var(--color-text-secondary) !important;
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    padding: 0.18rem 0.6rem !important;
+    border: 1px solid color-mix(in srgb, var(--color-border-primary) 55%, transparent) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--color-text-primary) 4%, transparent) !important;
+    transition: all 0.25s ease !important;
+    cursor: pointer;
+  }
+  [data-engine='twikoo'] .tk-sort-item:hover,
+  [data-engine='twikoo'] .tk-sort-item.__active {
+    color: var(--color-accent) !important;
+    border-color: color-mix(in srgb, var(--color-accent) 45%, transparent) !important;
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent) !important;
+  }
+
+  /* ── 2. 单条评论外壳：头像 | 主体 ── */
+  [data-engine='twikoo'] .tk-comment {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+    margin-top: 0.7rem !important;
+    padding: 1rem !important;
+    border: 1px solid color-mix(in srgb, var(--color-border-primary) 20%, transparent) !important;
     border-radius: 1rem !important;
+    background: color-mix(in srgb, var(--color-text-primary) 2%, var(--color-bg-primary)) !important;
+    /* 关键修复：Twikoo 默认 word-break: break-all，中文昵称会被逐字断成"竖排"；
+       改回 normal 后中文只在自然位置换行，配合第 4 节的整行 meta 彻底杜绝竖排 */
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+    transition: border-color 0.25s ease, background-color 0.25s ease;
+  }
+  [data-engine='twikoo'] .tk-comment:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 22%, transparent) !important;
+  }
+  /* 站长评论：左侧 accent 光带 */
+  [data-engine='twikoo'] .tk-comment.tk-master {
+    border-color: color-mix(in srgb, var(--color-accent) 32%, transparent) !important;
+    box-shadow: inset -2px 0 0 0 color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+
+  /* ── 3. 主体区：允许在 flex 中收缩到 0，窄屏不撑出横向滚动 ── */
+  [data-engine='twikoo'] .tk-main {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  /* ── 4. 两行布局核心：第一行 meta 占满整行，第二行 action 占满整行 ── */
+  [data-engine='twikoo'] .tk-main > .tk-row {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important; /* 允许 .tk-meta 与 .tk-action 各占一行 */
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0.2rem 0.6rem !important;
+  }
+  /* 第一行：昵称 + 标签 + 日期（头像在 .tk-comment 层，与它同一水平线） */
+  [data-engine='twikoo'] .tk-main > .tk-row > .tk-meta {
+    flex: 1 1 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 0.2rem 0.55rem !important;
+    min-width: 0 !important;
+    line-height: 1.45 !important;
+  }
+  /* 第二行：点赞 / 回复，与第一行用一条细线隔开 */
+  [data-engine='twikoo'] .tk-main > .tk-row > .tk-action {
+    flex: 0 0 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 0.2rem 0.65rem !important;
+    margin: 0.45rem 0 0 !important;
+    padding-top: 0.45rem !important;
+    border-top: 1px solid color-mix(in srgb, var(--color-border-primary) 22%, transparent);
+  }
+
+  /* ── 5. 第一行元素：昵称（横向）/ 日期 / 标签 ── */
+  [data-engine='twikoo'] .tk-nick {
+    color: var(--color-accent) !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    line-height: 1.4 !important;
+    /* 强制横向书写，中文昵称只在整词位置换行、绝不逐字竖排 */
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+  [data-engine='twikoo'] .tk-nick-link {
+    color: var(--color-accent) !important;
+    text-decoration: none !important;
+    transition: opacity 0.2s ease !important;
+  }
+  [data-engine='twikoo'] .tk-nick-link:hover {
+    color: var(--color-accent) !important;
+    text-decoration: underline !important;
+    opacity: 0.8;
+  }
+  [data-engine='twikoo'] .tk-time {
+    color: color-mix(in srgb, var(--color-text-primary) 42%, transparent) !important;
+    font-size: 0.72rem !important;
+    font-weight: 400 !important;
+    white-space: nowrap !important; /* 日期整串不换行，避免窄屏被挤成竖列 */
+  }
+  /* 站长 / 置顶 / 待审核 标签：药丸样式，跟随 accent */
+  [data-engine='twikoo'] .tk-tag {
+    display: inline-block !important;
+    padding: 0.05rem 0.5rem !important;
+    border-radius: 999px !important;
+    font-size: 0.66rem !important;
+    line-height: 1.5 !important;
+    vertical-align: 1px;
+  }
+  [data-engine='twikoo'] .tk-tag-green {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent) !important;
+    color: var(--color-accent) !important;
+  }
+  [data-engine='twikoo'] .tk-tag-red {
+    background: rgb(from #f56c6c r g b / 0.14) !important;
+    border: 1px solid rgb(from #f56c6c r g b / 0.5) !important;
+    color: #f56c6c !important;
+  }
+  [data-engine='twikoo'] .tk-tag-yellow {
+    background: rgb(from #e6a23c r g b / 0.14) !important;
+    border: 1px solid rgb(from #e6a23c r g b / 0.5) !important;
+    color: #e6a23c !important;
+  }
+
+  /* ── 6. 第二行元素：点赞 / 回复按钮 ── */
+  [data-engine='twikoo'] .tk-action-link {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.3rem !important;
+    margin: 0 !important;
+    padding: 0.2rem 0.6rem !important;
+    border-radius: 999px !important;
+    color: var(--color-text-secondary) !important;
+    background: transparent !important;
+    font-size: 0.76rem !important;
+    line-height: 1.3 !important;
+    transition: color 0.2s ease, background-color 0.2s ease !important;
+    cursor: pointer;
+  }
+  [data-engine='twikoo'] .tk-action-link:hover {
+    color: var(--color-accent) !important;
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
+  }
+  [data-engine='twikoo'] .tk-action-icon,
+  [data-engine='twikoo'] .tk-action-icon-solid {
+    color: var(--color-text-secondary) !important;
+  }
+  [data-engine='twikoo'] .tk-action-link:hover .tk-action-icon,
+  [data-engine='twikoo'] .tk-action-link:hover .tk-action-icon-solid,
+  [data-engine='twikoo'] .tk-action-link.tk-liked .tk-action-icon-solid,
+  [data-engine='twikoo'] .tk-action-link.tk-liked {
+    color: var(--color-accent) !important;
+  }
+  [data-engine='twikoo'] .tk-action-count {
+    color: var(--color-text-secondary) !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    margin-left: 0.15rem !important;
+  }
+  [data-engine='twikoo'] .tk-action-link.tk-liked .tk-action-count {
+    color: var(--color-accent) !important;
+  }
+  /* 站长悬停出现的「加精 / 屏蔽」等操作按钮，沿用 accent 配色 */
+  [data-engine='twikoo'] .tk-actions {
+    display: inline-flex !important;
+    gap: 0.4rem !important;
+    color: var(--color-accent) !important;
+    font-size: 0.72rem !important;
+  }
+
+  /* ── 7. 头像 ── */
+  [data-engine='twikoo'] .tk-avatar {
+    flex-shrink: 0 !important;
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    margin-right: 0 !important; /* 间距交给 .tk-comment 的 gap，避免双重间距 */
+    border-radius: 0.75rem !important;
+    border: 1px solid color-mix(in srgb, var(--color-border-primary) 15%, transparent) !important;
+    overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+  [data-engine='twikoo'] .tk-avatar .tk-avatar-img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    border-radius: 0.75rem !important;
+  }
+  [data-engine='twikoo'] .tk-avatar.tk-has-avatar {
+    background: color-mix(in srgb, var(--color-text-primary) 6%, transparent) !important;
+  }
+  [data-engine='twikoo'] .tk-avatar.tk-clickable {
+    cursor: pointer !important;
+  }
+  [data-engine='twikoo'] .tk-avatar.tk-clickable:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+    transform: translateY(-1px);
+  }
+
+  /* ── 8. 评论正文 ── */
+  [data-engine='twikoo'] .tk-content {
+    color: var(--color-text-primary) !important;
+    line-height: 1.75 !important;
+    font-size: 0.9rem !important;
+    margin-top: 0.45rem !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+  [data-engine='twikoo'] .tk-content a {
+    color: var(--color-accent) !important;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  [data-engine='twikoo'] .tk-ruser {
+    color: var(--color-accent) !important;
+    font-weight: 600 !important;
+  }
+  /* 正文里的图片：跟着容器收缩（官方默认 max-width: 300px 在窄屏仍会溢出） */
+  [data-engine='twikoo'] .tk-content img {
+    max-width: 100% !important;
+    border-radius: 0.5rem;
+  }
+  /* 正文里的代码：移动端自动折行，不产生横向滚动 */
+  [data-engine='twikoo'] .tk-content pre {
+    max-width: 100%;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.85em;
+  }
+
+  /* ── 9. 子回复：缩进减到 0.55rem，保留轻微层级 ── */
+  [data-engine='twikoo'] .tk-replies {
+    position: relative;
+    margin: 0.5rem 0 0 !important;
+    padding: 0.15rem 0 0.15rem 0.55rem !important;
+    /* max-height 略高于官方 200px，仍小于 twikoo 内部 236px 的"展开"判定阈值 */
+    max-height: 220px !important;
+    overflow: hidden !important;
+    border-left: 2px solid color-mix(in srgb, var(--color-accent) 18%, transparent) !important;
+    border-radius: 0 0.6rem 0.6rem 0.6rem;
+  }
+  /* 展开 / 收起按钮 */
+  [data-engine='twikoo'] .tk-expand {
+    display: block !important;
+    text-align: center !important;
+    color: var(--color-accent) !important;
+    font-size: 0.74rem !important;
+    font-weight: 600 !important;
+    padding: 0.5rem 0 !important;
+    margin-top: 0.35rem !important;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent) !important;
+    transition: background-color 0.2s ease !important;
+  }
+  [data-engine='twikoo'] .tk-expand:hover {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent) !important;
+  }
+
+  /* ── 10. 提交表单（昵称 / 邮箱 / 链接 + 文本域 + 按钮，element-ui 样式） ── */
+  [data-engine='twikoo'] .el-input__inner,
+  [data-engine='twikoo'] .el-textarea__inner {
+    color: var(--color-text-primary) !important;
     background: color-mix(
       in srgb,
       var(--color-text-primary) 3%,
       var(--color-bg-primary)
     ) !important;
-    color: var(--color-text-primary) !important;
-    font-size: 0.9rem !important;
+    border: 1px solid color-mix(in srgb, var(--color-border-primary) 30%, transparent) !important;
+    border-radius: 0.75rem !important;
+    font-size: 0.85rem !important;
     line-height: 1.6 !important;
-    padding: 1rem !important;
-    transition: all 0.3s ease;
   }
-  [data-engine='twikoo'] .el-textarea textarea:focus {
+  [data-engine='twikoo'] .el-input__inner {
+    padding: 0.45rem 0.75rem !important;
+  }
+  [data-engine='twikoo'] .el-textarea__inner {
+    padding: 0.9rem !important;
+  }
+  [data-engine='twikoo'] .el-input__inner:focus,
+  [data-engine='twikoo'] .el-textarea__inner:focus {
     outline: none !important;
     border-color: var(--color-accent) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
-  [data-engine='twikoo'] .tk-action-btn,
-  [data-engine='twikoo'] .tk-btn {
-    border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent) !important;
-    border-radius: 2rem !important;
+  [data-engine='twikoo'] .tk-submit .el-button {
+    padding: 0.4rem 1.1rem !important;
+    border-radius: 999px !important;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent) !important;
     background: color-mix(in srgb, var(--color-accent) 8%, transparent) !important;
     color: var(--color-accent) !important;
     font-weight: 600 !important;
-    font-size: 0.8rem !important;
-    padding: 0.4rem 1.2rem !important;
-    transition: all 0.3s ease !important;
-    cursor: pointer;
+    font-size: 0.78rem !important;
+    transition: all 0.25s ease !important;
   }
-  [data-engine='twikoo'] .tk-action-btn:hover,
-  [data-engine='twikoo'] .tk-btn:hover {
-    background: color-mix(in srgb, var(--color-accent) 15%, transparent) !important;
-  }
-  [data-engine='twikoo'] .tk-comment {
-    border: 1px solid color-mix(in srgb, var(--color-border-primary) 20%, transparent) !important;
-    border-radius: 1rem !important;
-    background: color-mix(
-      in srgb,
-      var(--color-text-primary) 2%,
-      var(--color-bg-primary)
-    ) !important;
-    padding: 1.25rem !important;
-    margin-bottom: 0.75rem !important;
-  }
-  [data-engine='twikoo'] .tk-comment:hover {
-    border-color: color-mix(in srgb, var(--color-accent) 20%, transparent) !important;
-  }
-  [data-engine='twikoo'] .tk-avatar {
-    border-radius: 0.75rem !important;
-    overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--color-border-primary) 15%, transparent) !important;
-  }
-  [data-engine='twikoo'] .tk-avatar img {
-    border-radius: 0.75rem !important;
-  }
-  [data-engine='twikoo'] .tk-author {
+  [data-engine='twikoo'] .tk-submit .el-button:hover,
+  [data-engine='twikoo'] .tk-submit .el-button:focus {
+    background: color-mix(in srgb, var(--color-accent) 16%, transparent) !important;
     color: var(--color-accent) !important;
-    font-weight: 600 !important;
-    font-size: 0.9rem !important;
+    border-color: color-mix(in srgb, var(--color-accent) 50%, transparent) !important;
   }
-  [data-engine='twikoo'] .tk-time {
-    color: color-mix(in srgb, var(--color-text-primary) 40%, transparent) !important;
-    font-size: 0.75rem !important;
+  [data-engine='twikoo'] .tk-submit .el-button + .el-button {
+    margin-left: 0.5rem;
   }
-  [data-engine='twikoo'] .tk-content {
-    color: var(--color-text-primary) !important;
-    line-height: 1.7 !important;
-    font-size: 0.9rem !important;
+
+  /* ── 11. 移动端微调（≤640px） ── */
+  @media (max-width: 640px) {
+    [data-engine='twikoo'] .tk-comment {
+      gap: 0.6rem !important;
+      padding: 0.8rem !important;
+    }
+    [data-engine='twikoo'] .tk-avatar {
+      width: 2rem !important;
+      height: 2rem !important;
+      border-radius: 0.6rem !important;
+    }
+    [data-engine='twikoo'] .tk-avatar .tk-avatar-img {
+      border-radius: 0.6rem !important;
+    }
+    [data-engine='twikoo'] .tk-nick {
+      font-size: 0.86rem !important;
+    }
+    [data-engine='twikoo'] .tk-content {
+      font-size: 0.86rem !important;
+    }
+    [data-engine='twikoo'] .tk-main > .tk-row > .tk-meta {
+      gap: 0.2rem 0.45rem !important;
+    }
+    [data-engine='twikoo'] .tk-main > .tk-row > .tk-action {
+      gap: 0.15rem 0.45rem !important;
+    }
+    [data-engine='twikoo'] .tk-replies {
+      padding-left: 0.4rem !important;
+    }
   }
-  [data-engine='twikoo'] .tk-replies {
-    margin-left: 0.5rem !important;
-    padding-left: 1rem !important;
-    border-left: 2px solid color-mix(in srgb, var(--color-accent) 15%, transparent) !important;
+
+  /* ── 12. 动效降级 ── */
+  @media (prefers-reduced-motion: reduce) {
+    [data-engine='twikoo'] .tk-comment,
+    [data-engine='twikoo'] .tk-avatar,
+    [data-engine='twikoo'] .tk-nick-link,
+    [data-engine='twikoo'] .tk-sort-item,
+    [data-engine='twikoo'] .tk-action-link,
+    [data-engine='twikoo'] .tk-expand,
+    [data-engine='twikoo'] .tk-submit .el-button {
+      transition: none !important;
+    }
   }
 </style>

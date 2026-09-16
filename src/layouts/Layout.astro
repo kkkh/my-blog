@@ -260,18 +260,24 @@ const { title, description, image } = Astro.props
       //   Swup 切页只替换 <main>、不重建 body，本脚本常驻单例；
       //   main 内的 inline 脚本由 SwupScriptsPlugin 每次重跑，
       //   若在组件内初始化，每切一篇文章就新建一个评论实例且旧的永不销毁。
-      // 两个引擎都按需懒加载：Twikoo 772KB / Waline 262KB，
+      // 两个引擎都按需懒加载：Twikoo 772KB（官方 CDN）/ Waline 262KB（本地），
       //   只有用户真的切到对应系统才下载，首页与无评论页零成本。
       // ────────────────────────────────────────────────
       ;(function () {
         var KEY = 'mcy-comment-driver'
         var TWIKOO_ENV_ID = 'https://twikoo.mingcy.cn/'
-        var TWIKOO_JS = '/twikoo/twikoo.all.min.js'
+        // 官方 CDN：jsDelivr 主源 + unpkg 备源（版本钉死 1.7.19，
+        // 与云函数 twikoo-vercel 1.7.19 对齐；本地 public/twikoo/ 已删除）
+        var TWIKOO_JS = [
+          'https://cdn.jsdelivr.net/npm/twikoo@1.7.19/dist/twikoo.all.min.js',
+          'https://unpkg.com/twikoo@1.7.19/dist/twikoo.all.min.js',
+        ]
         var WALINE_SERVER = 'https://waline.mingcy.cn'
         var WALINE_JS = '/waline/waline.js'
         var WALINE_CSS = '/waline/waline.css'
 
         var twikooScript = null
+        var twikooTryIndex = 0
         var walinePromise = null
         var walineInstance = null
         var walinePath = null
@@ -351,7 +357,7 @@ const { title, description, image } = Astro.props
           window.__mcyCommentDriverSynced = true
         }
 
-        // ─── Twikoo（本地化 /twikoo/，同源直连、不受第三方 CDN 拦截影响） ───
+        // ─── Twikoo（官方 CDN 懒加载，只有切到本引擎才下载） ───
         // Twikoo 用 Vue 2 的 $mount('#twikoo')，会把 #twikoo 节点整个替换掉；
         // 因此幂等标记 data-ready 必须打在永不被替换的外层壳上。
         function twikooSlot() {
@@ -397,10 +403,20 @@ const { title, description, image } = Astro.props
             mountTwikoo()
             return
           }
-          if (twikooScript) return // 上一次请求还在飞行
+          if (twikooScript) return // 上一次请求还在飞行（含 CDN 自动切换期间）
           setLoader('twikoo', true)
+          loadTwikooScript()
+        }
+
+        // 多源加载：某个 CDN 被浏览器跟踪防护 / 网络拦截时自动换下一个源，
+        // 两个源都失败才给用户报错（保持原有 onerror 提示行为不变）
+        function loadTwikooScript() {
+          if (twikooTryIndex >= TWIKOO_JS.length) {
+            setLoader('twikoo', true, 'Twikoo 加载失败，请刷新重试')
+            return
+          }
           twikooScript = document.createElement('script')
-          twikooScript.src = TWIKOO_JS
+          twikooScript.src = TWIKOO_JS[twikooTryIndex++]
           twikooScript.onload = function () {
             // CSS 就是脚本加载这一刻注入 head 的，必须马上挪走；
             // 一旦等到 Swup 切页之后才挪，@swup/head-plugin 已经删掉了
@@ -409,7 +425,7 @@ const { title, description, image } = Astro.props
           }
           twikooScript.onerror = function () {
             twikooScript = null
-            setLoader('twikoo', true, 'Twikoo 加载失败，请刷新重试')
+            loadTwikooScript()
           }
           document.head.appendChild(twikooScript)
         }

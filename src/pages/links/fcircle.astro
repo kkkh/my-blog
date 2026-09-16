@@ -500,6 +500,88 @@ const title = '友圈 | 茗辰原'
     }
   }
 
+  /* ═══════════════════════════════════════════════════════════
+     移动端卡片横向溢出修复（只影响 ≤768px；PC 端一条样式都不改）
+     根因：fclite.css 的 .articles-container 用 repeat(auto-fill, minmax(220px, 1fr))，
+           220px 是网格轨道的【硬下限】—— 容器比 220px 窄时轨道不收缩，
+           整片卡片墙直接撑出视口 → 页面出现横向滚动条。
+     修法：minmax(0, 1fr)（允许轨道收缩到 0）+ 全链路 min-width: 0，
+           让每一层都能跟着视口收缩；外层再 clip 一道兜底。
+     注意：只用 overflow-x: clip（不产生滚动容器、不裁纵向），
+           .card:hover 的 translateY 悬浮效果在纵向不受影响。
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+    /* 页面外层：自身不产生横向滚动条 */
+    .fcircle-wrap {
+      max-width: 100%;
+      overflow-x: clip;
+    }
+
+    /* 插件挂载点 */
+    #friend-circle-lite-root {
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: clip;
+    }
+
+    /* 卡片墙（核心修复）：单列 + 可收缩轨道 */
+    #friend-circle-lite-root .articles-container {
+      grid-template-columns: minmax(0, 1fr) !important;
+      gap: 0.7rem !important;
+      width: 100% !important;
+    }
+
+    /* 单张卡片：允许收缩，内部裁切兜底 */
+    #friend-circle-lite-root .card {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
+    }
+    #friend-circle-lite-root .card-title,
+    #friend-circle-lite-root .card-author,
+    #friend-circle-lite-root .card-date {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    /* 随机文章区：统计格 2 列 + 内容可收缩 */
+    #friend-circle-lite-root #random-article {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      padding: 1.1rem;
+      box-sizing: border-box;
+    }
+    #friend-circle-lite-root .random-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 0.6rem !important;
+    }
+    #friend-circle-lite-root .random-container,
+    #friend-circle-lite-root .random-meta,
+    #friend-circle-lite-root .random-author,
+    #friend-circle-lite-root .random-date {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    /* 加载更多按钮：不再固定最小宽度 */
+    #friend-circle-lite-root #load-more-btn {
+      min-width: 0;
+      max-width: 100%;
+      padding: 0.55rem 1.5rem;
+    }
+
+    /* 友链状态卡：沿用 640px 断点的两列，但轨道允许收缩 */
+    .status-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .status-section {
+      padding: 1.1rem;
+      max-width: 100%;
+    }
+  }
+
   /* 减弱动效偏好 */
   @media (prefers-reduced-motion: reduce) {
     #friend-circle-lite-root .card {

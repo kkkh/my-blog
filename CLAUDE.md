@@ -1161,3 +1161,38 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 - 修复：文章页图片点击正常弹出放大弹窗 + 左右滑动
 
 **验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 构建成功（astro check + vite build 均无错误）。
+
+### 2026-09-15 23:10 - Twikoo 改官方 CDN 加载 + 两行评论头 CSS + 友圈移动端溢出修复
+
+**背景：** 用户要求把 Twikoo 从本地静态文件改为官方 CDN 引入，同时应用两套 CSS：①Twikoo 评论样式（两行评论头 / 子回复缩进收敛 / 禁止中文昵称竖排）；②友圈页面移动端卡片横向溢出修复（PC 端完全不动）。约束：只动 Twikoo 引入代码 + 新增自定义 CSS，不改文章、相册等其他页面逻辑。
+
+**前置事实（从本地 bundle 源码逐字验证，v1.7.19）：**
+
+- Twikoo 评论 DOM 为 `.tk-comment > (.tk-avatar + .tk-main)`，`.tk-main > (.tk-row + .tk-content + .tk-replies)`；`.tk-row > (.tk-meta + .tk-action)`——**不存在** `tk-header` / `tk-comment-content` / `tk-btn` / `tk-action-btn` 这些类（旧 CSS 里后两个是死选择器，点赞/回复按钮实际是 `.tk-action-link`）
+- 官方 CSS 硬编码 `word-break: break-all` 在 `.tk-comment` 上、`.tk-content img { max-width: 300px }`、`.tk-replies { max-height: 200px }`（JS 用 `scrollHeight > 236` 判定是否显示「展开」）
+- `public/twikoo/twikoo.all.min.js` 实为 **35941 行、1.63MB**（被 `pnpm lint` 的 prettier 重排过，官方原始包只有 772KB）——`.prettierignore` 未排除 `public/`，再次本地化会被同样污染
+- CDN 实测：`https://cdn.jsdelivr.net/npm/twikoo@1.7.19/dist/twikoo.all.min.js` → 200 / 772129B（与官方一致）；unpkg 同版本同体积可用作备源
+- 友圈溢出根因：`public/fclite/fclite.css` 的 `.articles-container` 用 `repeat(auto-fill, minmax(220px, 1fr))`，220px 是网格轨道**硬下限**，容器比 220px 窄时轨道不收缩 → 卡片墙撑出视口
+
+**修改文件：**
+
+- `src/layouts/Layout.astro`（Twikoo 加载源 + 多源降级）
+- `public/twikoo/`（**整目录删除**）
+- `src/components/comment/Twikoo.astro`（**重写** `<style is:global>`，46 条规则）
+- `src/pages/links/fcircle.astro`（追加 `@media (max-width: 768px)` 块）
+
+**修改内容：**
+
+- **Layout.astro**：`TWIKOO_JS` 从字符串 `/twikoo/twikoo.all.min.js` 改为**数组**（jsDelivr 主源 + unpkg 备源，版本钉死 1.7.19 与云函数 twikoo-vercel 对齐）；新增 `twikooTryIndex` + `loadTwikooScript()`，`onerror` 时自动换下一个源，两个源都失败才走原有 `setLoader(..., 'Twikoo 加载失败，请刷新重试')`；`adoptTwikooStyles()` 与 `mountTwikoo()` 一字未改（CDN bundle 内同样是 webpack vue-style-loader，样式挪出 head 的机制依然必需）
+- **Twikoo.astro 两行评论头（纯 CSS，零 JS）**：`.tk-main > .tk-row { flex-wrap: wrap }` + `.tk-meta { flex: 1 1 100% }`（第一行：头像+昵称+标签+日期）+ `.tk-action { flex: 0 0 100%; border-top: 1px ... }`（第二行：点赞/回复）。**嵌套的 `.tk-replies .tk-comment` 天然复用同一套规则**，子回复自动两行，无需额外选择器
+- **禁止昵称竖排（三重保险）**：①`.tk-comment` 的 `word-break: break-all` → `normal`；②`.tk-nick` 显式 `writing-mode: horizontal-tb !important` + `text-orientation: mixed` + `overflow-wrap: anywhere`（允许整词换行）；③`.tk-meta { min-width: 0 }` + `.tk-main { min-width: 0 }`（容器可收缩，杜绝 flex 挤压）
+- **子回复缩进**：`.tk-replies` 从 `margin-left:.5rem + padding-left:1rem` 收敛到 `padding: .15rem 0 .15rem .55rem`（总缩进 1.5rem → 0.55rem，保留左侧 2px accent 竖线层级），`max-height` 200px → 220px（仍小于官方 JS 的 236px 判定阈值，「展开」逻辑不变）
+- **移动端评论**：新增 `@media (max-width: 640px)`（头像 2.5rem→2rem、内边距/字号收窄、子回复缩进 0.4rem）；`.tk-content img { max-width: 100% !important }`（官方 300px 在窄屏仍溢出）、`.tk-content pre { white-space: pre-wrap }`
+- **新增覆盖**：评论列表头 `.tk-comments-title` 细线分隔、`.tk-sort-item` 药丸、`.tk-comment.tk-master` 左侧 accent 光带、`.tk-tag-*` 三色调色板、`.tk-expand` 展开按钮、`.el-input__inner/.el-textarea__inner` + `.tk-submit .el-button`（旧 CSS 的 `.tk-btn`/`.tk-action-btn` 是死选择器，element-ui 按钮此前完全没样式）
+- **fcircle.astro 移动端溢出修复**（仅 `≤768px`，PC 零影响）：`.articles-container { grid-template-columns: minmax(0, 1fr) !important }`（核心：允许轨道收缩到 0）+ `.card` 与 `.card-title/.card-author/.card-date` 全链路 `min-width: 0; max-width: 100%` + `#random-article`/`.random-stats`（2 列 `minmax(0,1fr)`）/`.random-container`/`.random-meta`/`#load-more-btn` 同步可收缩 + `.fcircle-wrap` 与 `#friend-circle-lite-root` 的 `overflow-x: clip` 兜底（`clip` 不产生滚动容器、不裁纵向，`.card:hover` 的 `translateY` 悬浮不受影响）+ `.status-grid` 用 `repeat(2, minmax(0, 1fr))` 升级原 640px 断点的 `1fr 1fr`
+
+**与 Fancybox 的隔离：** 所有新选择器锁在 `[data-engine='twikoo']` 或 `#friend-circle-lite-root` 作用域内，不含 `.fancybox` / `[data-fancybox]`，不覆盖 `z-index` / `position: fixed`；Twikoo 自带的 `tk-lightbox` 保持官方实现（dist 中 `data-engine` 选择器与 `fancybox` 零交集，实测 0 处交叉）。
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 210 pages Complete。dist 核验：`dist/twikoo/` 已不存在；209 个 HTML 同时引用 jsDelivr 主源与 unpkg 备源，`/twikoo/twikoo.all.min.js` 残留 0 处；`_spec_.*.css` 含 `flex:1 1 100%` / `flex:0 0 100%` / `writing-mode:horizontal-tb` / `.55rem` 缩进 / `max-height:220px`；`fcircle.*.css` 含 `@media (max-width:768px)` 块与 3 处 `minmax(0,1fr)`。
+
+**注意：** ①CDN 版本钉死 1.7.19，升级需同时改 `Layout.astro` 两处 URL 与云函数 `twikoo-vercel` 版本；②若用户浏览器把 jsDelivr 与 unpkg 都拦掉（跟踪防护），评论会显示「Twikoo 加载失败」——这正是本项目此前 cdnjs→jsDelivr 的同类风险，回退方案是把官方包重新放回 `public/twikoo/` 并把 `.prettierignore` 加上 `public/`（避免再被 prettier 重排膨胀）；③本次仅删 `public/twikoo/`，`.prettierignore` 未改；④`public/waline/`、`public/fclite/`、`public/fancybox/` 仍为本地静态文件，不受影响。
