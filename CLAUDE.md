@@ -117,6 +117,36 @@ astro-gyoza/
 - `data-no-swup` 同时让 Swup 的 hover 预加载跳过图片链接（`SwupPreloadPlugin` 走 `shouldIgnoreVisit` 判断）—— 这是预期的，把图片 URL 当页面预加载没意义。
 - Twikoo 的展开阈值是 bundle 内的常量 236px，本站折叠态用 220px。回复块高度落在 220–236px 之间时会「被裁但没展开按钮」，概率低；想彻底对齐可把 220px 提到 236px（代价是折叠块更高）。
 
+### 2026-09-17 23:34 - `scripts/sync.mjs` 白文件预检查修复（目录型 .gitignore pattern 的误报）
+
+**背景：** 跑 `pnpm d` 被前置检查拦下：`❌ 以下路径未被 .gitignore 排除，已中止同步：.reasonix`。但 `.reasonix` 本来就在 `.gitignore` 里，只是那个目录已经被删掉了。
+
+**根因：** `.gitignore` 写的是 `.reasonix/`（带尾斜杠 = **只匹配目录**）。`git check-ignore` 对**不存在**的路径无法判断它是不是目录，于是匹配不上：实测同目录下 `.reasonix/`（带斜杠）→ IGNORED，`.reasonix`（不带斜杠、路径不存在）→ NOT-IGNORED。而 `sync.mjs` 的 `MUST_IGNORE` 传的是不带斜杠的 `.reasonix` → 误报为「未排除」，同步直接中止。同理 `.env` 之所以能过，是因为它的 pattern 不带斜杠。
+
+**修改文件：** `scripts/sync.mjs`
+
+**修改内容：** `isIgnored(p)` 开头加一句存在性判断 —— 本机不存在的路径不可能被 git 提交，直接视为安全：
+
+```js
+import { existsSync } from 'fs'
+
+function isIgnored(p) {
+  if (!existsSync(path.join(ROOT, p))) return true
+  try {
+    execSync(`git check-ignore -q "${p}"`, { cwd: ROOT, stdio: 'pipe' })
+    return true
+  } catch {
+    return false
+  }
+}
+```
+
+保留目录型 pattern 的原始写法（`.reasonix/`），**没有**为了迁就检查去把 `.gitignore` 改成 `.reasonix`。反过来说：如果哪天真的出现一个名为 `.reasonix` 的**文件**，`git check-ignore` 仍会判 NOT-IGNORED 并正确中止，防误推的语义没被削弱。
+
+**验证：** `pnpm d` 预检查通过（`dist` / `node_modules` / `.astro` / `reasonix.toml` → IGNORED，`.reasonix` / `.env` → 因不存在跳过），提交 `174cc95` 推送成功。
+
+**上一笔 `8e35404` 的实际内容（供核对）：** 除本次 4 个 src 文件 + CLAUDE.md 外，`git add -A` 还带走了工作区里**早已存在**的改动：`docs/twikoo-mail-template/` 三个文件的删除（本次会话未动过 docs）与 `src/data/ai-summaries.json` 的 +5 行（`pnpm build` 的 `gen-ai-summaries.mjs` 重新生成）。
+
 ### 2026-09-16 - Twikoo 昵称/身份标签/点赞行视觉重做 & 卸载 @vercel/speed-insights
 
 **背景：** 用户反馈上一版 Twikoo CSS 三处问题：①第二行点赞/踩/回复是灰字，应该有强调色；②昵称后面的身份标签不美观、「丢掉了」；③要求参考 `blog.weasel6.cn` 的用户名与标签样式，做成本站独有的科技感。同批还要求卸载 @Speed Insights 插件。
