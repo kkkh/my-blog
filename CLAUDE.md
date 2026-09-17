@@ -77,6 +77,46 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-09-17 23:25 - 四项修复：Twikoo 二级回复展开失效 & 相册灯箱直跳直链 & 昵称波浪线/站长标签 & 友圈移动端溢出
+
+**背景：** 用户一次报四个问题：①Twikoo 二级回复下继续新增回复后，点「展开」看不到下方评论；②`/galleries/junxun` 从导航栏直接访问时点击图片直接跳图片直链，只有带锚点的 `/galleries/junxun#gallery-1` 能弹出 Fancybox；③昵称下方要波浪线（颜色随每页随机强调色，浅色明显 / 深色柔和）+ 站长评论旁要「站长」标签带小装饰；④友圈页移动端仍有溢出。要求仅改必要代码，布局 / 功能 / 样式全部保留。
+
+**修改文件：**
+
+- `src/components/comment/Twikoo.astro`
+- `src/layouts/Layout.astro`
+- `src/pages/galleries/[slug].astro`
+- `src/pages/links/fcircle.astro`
+
+**Bug 1 根因（Twikoo 展开失效）：** 组件自己的 `[data-engine='twikoo'] .tk-replies { max-height:220px!important; overflow:hidden!important }` 选择器特异性比官方 `.tk-replies-expand { max-height:none; overflow:unset }` 高，且带 `!important` → 展开态被一起压回 220px + 裁剪。twikoo 1.7.19 bundle（jsDelivr，772129 B）实测：展开类是 `{'tk-replies-expand': isExpanded || !showExpand || replying}`，展开阈值是 `scrollHeight > 236`。修法：补一条同级 `!important` 显式放开。
+
+**Bug 2 根因（相册直跳直链）—— 三层叠加，缺一不可：**
+
+1. **Swup 每切一次页会重新执行整个 document 里的所有 `<script>`。** `@swup/astro` 默认 `reloadScripts = true` → 启用 `SwupScriptsPlugin`（`@swup/scripts-plugin@2.1.0`，默认 `head:true, body:true, optin:false`），它挂 `content:replace`，用 `document.querySelectorAll('script:not([data-swup-ignore-script])')` 把每个 script 克隆重建并重新执行。于是 Swup 切页后 `/fancybox/fancybox.umd.min.js` 被重跑 → `Fancybox` 变成全新实例（`openers` 空、点击监听器没了），而 `initFancybox` 的 `astro:page-load` / `swup:page:view` +200ms 重绑可能先于 UMD 重加载完成 → 灯箱彻底没绑上，点击落回原生 `<a href>` 直跳图片。
+2. **Swup 的点击代理不会认 Fancybox 的 `preventDefault`。** delegate-it 6.4.0 把监听挂到 `document.documentElement`（`base instanceof Document ? documentElement : base`），而 `handleLinkClick` 里只判 `shouldIgnoreVisit`，**不检查 `event.defaultPrevented`** → 即使 Fancybox 在 `document.body` 上先 preventDefault，Swup 照样 `performNavigation` 去加载图片 URL。
+3. **Fancybox 6.0.29 的 unbind 不摘监听。** `unbind(el)` 不传 selector 时只删掉 body→selector 的 Map 项、**不调 `removeEventListener`**；`bind` 又只在 `Map.size === 1` 时才 `addEventListener` → 每次切页的 unbind+bind 基本是空转，绑定丢了也不会被察觉。
+
+「带锚点能用」的解释：`/galleries/junxun#gallery-1` 是整页加载进的（Fancybox 在 DOMContentLoaded 绑了一次，没有 Swup 重执行），不是 Swup 切页进的 —— 与哈希本身无关。
+
+**Bug 2 修法：** Fancybox UMD 与初始化脚本都加 `data-swup-ignore-script`（初始化脚本的监听全挂在 `document` 上、Swup 永不替换，首载即生效；不加标记会被每页重跑一次，`astro:page-load` 监听器随切页数无限累加）；相册 `<a>` 加 `data-no-swup` 让 Swup 完全不碰图片链接；`initFancybox` 加「当前页无 `[data-fancybox]` 就早退」。
+
+**Twikoo 样式（保留原有两行评论头 + 0.55rem 子回复缩进）：**
+
+- 波浪线从 `.tk-nick-link` 移到 `.tk-nick`：bundle ~700270 实测昵称有两个 DOM 分支（有主页链接 `<a class="tk-nick tk-nick-link">`、没有 `<strong class="tk-nick">`），两者都带 `.tk-nick` → 每个用户昵称下都有波浪线，不漏普通访客。颜色走 `--color-accent`（AccentColorInjector 每页随机注入）；浅色 62% + 1.6px 明显，`html[data-theme='dark']` 降到 36% + 1.2px，暗色辉光 14px→10px、悬停 90%→58%。
+- 站长标签兜底：`.tk-comment.tk-master .tk-meta:not(:has(.tk-tag)) .tk-nick::after` 画「站长」药丸 + 皇冠 SVG（三层背景：高光条 + 皇冠 + accent 渐变）。官方 `.tk-tag-green` 只在云端配了 `MASTER_TAG` 时才渲染（i18n 默认文案是「博主」），配了就由官方标签接管、`:has()` 让兜底自动退让；不支持 `:has()` 的旧浏览器整条规则被丢弃，静默降级。刻意不挂 `mcy-tag-sweep` —— 那条 keyframe 只挪 `background-position`，会把 0.72em 的皇冠带着在药丸里横滑。
+- `prefers-reduced-motion` 名单里 `.tk-nick-link` → `.tk-nick`。
+
+**友圈移动端（只影响 ≤768px，PC 一条不改）：** `.card` 内边距 1.15/1.1rem → 0.8/0.85rem（单列后每张卡少浪费 ~18px）；`.card-author`（桌面端 `width:fit-content` + 无 overflow）限宽 + 裁切，长作者名不再撑出卡片；`.card-title` / `.card-date` 拆成独立规则，`.card-date` 加 `calc(100% - 1rem)` + 省略号；`.random-content` 提前到 768px 改竖排（fclite 自己要到 ≤600px 才改，而横排时 `.random-button-container` 是 `flex-shrink:0`，601–768px 这段最易横撑），按钮容器满宽居中可换行；`.status-card` 补 `min-width:0`（网格项默认 `min-width:auto`）。原有 `overflow-x: clip` 兜底保留。
+
+**验证：** `pnpm astro check` 119 files / 0 errors / 0 warnings / 0 hints；`pnpm build` 210 pages Complete + Pagefind 88 pages / 11063 words。dist 核验：`dist/index.html` 的 Fancybox UMD 标签带 `data-swup-ignore-script`；`dist/galleries/junxun/index.html` 含 `data-fancybox="gallery" data-no-swup`；`_spec_.*.css` 含 `.tk-replies.tk-replies-expand{max-height:none!important;overflow:visible!important}`、`not(:has(.tk-tag))` 站长兜底、`underline wavy` ×2；`_astro/fcircle.*.css` 的 `@media (max-width: 768px)` 块含全部新增规则。
+
+**注意：**
+
+- `SwupScriptsPlugin` 仍会在每次切页重跑**其它**外链脚本（Twikoo CDN、fclite.js、livephoto、Umami/Vercel analytics）。inline 脚本靠站点现有的 `window.__xxxInit` 幂等守卫吸收；以后再看到「重复初始化」症状，给那个 script 加 `data-swup-ignore-script`。彻底关掉要在 `astro.config.js` 的 swup 里设 `reloadScripts: false`，但那也会让被替换容器内的脚本不再执行，本次没动。
+- 兜底站长标签依赖 `:has()`（Chrome 105+ / Safari 15.4+ / Firefox 121+）；旧浏览器只是不显示这枚药丸，不影响其它样式。
+- `data-no-swup` 同时让 Swup 的 hover 预加载跳过图片链接（`SwupPreloadPlugin` 走 `shouldIgnoreVisit` 判断）—— 这是预期的，把图片 URL 当页面预加载没意义。
+- Twikoo 的展开阈值是 bundle 内的常量 236px，本站折叠态用 220px。回复块高度落在 220–236px 之间时会「被裁但没展开按钮」，概率低；想彻底对齐可把 220px 提到 236px（代价是折叠块更高）。
+
 ### 2026-09-16 - Twikoo 昵称/身份标签/点赞行视觉重做 & 卸载 @vercel/speed-insights
 
 **背景：** 用户反馈上一版 Twikoo CSS 三处问题：①第二行点赞/踩/回复是灰字，应该有强调色；②昵称后面的身份标签不美观、「丢掉了」；③要求参考 `blog.weasel6.cn` 的用户名与标签样式，做成本站独有的科技感。同批还要求卸载 @Speed Insights 插件。

@@ -612,12 +612,23 @@ const { title, description, image } = Astro.props
         })
       })()
     </script>
-    <!-- Fancybox 图片灯箱（本地化，避免 CDN 被跟踪防护拦截） -->
-    <script is:inline src="/fancybox/fancybox.umd.min.js"></script>
-    <script is:inline>
+    <!-- Fancybox 图片灯箱（本地化，避免 CDN 被跟踪防护拦截）
+         data-swup-ignore-script 不能省：@swup/astro 默认开启 SwupScriptsPlugin
+         （head:true + body:true），它在 content:replace 时用 querySelectorAll 扫【整个
+         document】的 script:not([data-swup-ignore-script])，把每个 <script> 克隆重建并
+         重新执行。不带这个属性时，Swup 每切一次页 Fancybox 都会被重定义成全新实例
+         （openers 清空、点击监听器丢失），而下面 initFancybox 的 +200ms 重绑可能先于
+         UMD 重加载完成 → 灯箱彻底失效，点击变成直跳图片直链 -->
+    <script is:inline src="/fancybox/fancybox.umd.min.js" data-swup-ignore-script></script>
+    <!-- 初始化脚本同样标记 ignore：它的监听器都挂在 document 上（Swup 永不替换），
+         首次加载时就已生效；不带标记会被 SwupScriptsPlugin 每切一次页克隆重跑一次，
+         astro:page-load 监听器无限累加（initFancybox 虽幂等，但调用次数随切页数增长） -->
+    <script is:inline data-swup-ignore-script>
       // Fancybox 初始化：全站统一图片预览组件
       function initFancybox() {
         if (typeof Fancybox === 'undefined') return
+        // 当前页没有可弹的图就不绑定（相册页/文章页才会命中）
+        if (!document.querySelector('[data-fancybox]')) return
         // 先销毁旧实例，防止 Swup 切页后重复绑定
         Fancybox.unbind(document.body)
         // 绑定所有带 data-fancybox 属性的元素

@@ -531,18 +531,31 @@ const title = '友圈 | 茗辰原'
       width: 100% !important;
     }
 
-    /* 单张卡片：允许收缩，内部裁切兜底 */
+    /* 单张卡片：允许收缩，内部裁切兜底；窄屏压内边距（桌面端 1.15/1.1rem 不变），
+       单列后每张卡少浪费 ~18px 横向空间，长标题/作者名不再被挤到贴边 */
     #friend-circle-lite-root .card {
       width: 100%;
       max-width: 100%;
       min-width: 0;
       overflow: hidden;
+      padding: 0.8rem 0.85rem;
     }
-    #friend-circle-lite-root .card-title,
-    #friend-circle-lite-root .card-author,
-    #friend-circle-lite-root .card-date {
+    #friend-circle-lite-root .card-title {
       min-width: 0;
       max-width: 100%;
+    }
+    /* 作者药丸：桌面端是 width:fit-content + 无 overflow，长作者名会把药丸撑出卡片。
+       移动端限宽 + 裁切（文字超出部分直接不显示，不留溢出） */
+    #friend-circle-lite-root .card-author {
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+    #friend-circle-lite-root .card-date {
+      max-width: calc(100% - 1rem);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     /* 随机文章区：统计格 2 列 + 内容可收缩 */
@@ -552,6 +565,20 @@ const title = '友圈 | 茗辰原'
       min-width: 0;
       padding: 1.1rem;
       box-sizing: border-box;
+    }
+    /* 提前到 768px 改竖排（插件自己要到 ≤600px 才改）：
+       横排时 .random-button-container 是 flex-shrink:0，标题 + 按钮行会互挤，
+       601–768px 这段区间最容易横着撑出去 */
+    #friend-circle-lite-root .random-content {
+      flex-direction: column;
+      align-items: center;
+      gap: 0.9rem;
+    }
+    #friend-circle-lite-root .random-button-container {
+      width: 100%;
+      justify-content: center;
+      flex-wrap: wrap;
+      row-gap: 0.5rem;
     }
     #friend-circle-lite-root .random-stats {
       grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -575,6 +602,11 @@ const title = '友圈 | 茗辰原'
     /* 友链状态卡：沿用 640px 断点的两列，但轨道允许收缩 */
     .status-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    /* 网格项默认 min-width:auto（= min-content），这里显式归零兜底 */
+    .status-card {
+      min-width: 0;
+      max-width: 100%;
     }
     .status-section {
       padding: 1.1rem;
