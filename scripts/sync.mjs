@@ -11,6 +11,7 @@
  *                 走 .gitignore 排除白文件（dist、node_modules、.reasonix 等）
  */
 import { execSync } from 'child_process'
+import { existsSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -30,6 +31,12 @@ function run(cmd, opts = {}) {
 }
 
 function isIgnored(p) {
+  // 本机不存在的路径不可能被 git 提交，直接视为安全。
+  // 这一步必须放在 check-ignore 之前：.gitignore 里的目录型 pattern（带尾斜杠，
+  // 如 `.reasonix/`）只在路径确实存在且是目录时才匹配 —— 目录被删掉之后
+  // `git check-ignore .reasonix` 会判定 NOT-IGNORED，于是把「本来就已排除、
+  // 且根本不在磁盘上」的路径误报成未排除，同步直接被中止。
+  if (!existsSync(path.join(ROOT, p))) return true
   try {
     execSync(`git check-ignore -q "${p}"`, { cwd: ROOT, stdio: 'pipe' })
     return true
