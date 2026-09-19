@@ -16,7 +16,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/baidu-push.yml'
-      - 'scripts/baidu-changed-urls.js'
+      - 'scripts/baidu-changed-urls.cjs'
       - 'scripts/baidu_push.py'
   workflow_dispatch:
     inputs:
@@ -55,7 +55,7 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
           GITHUB_SHA: ${{ github.sha }}
-        run: node scripts/baidu-changed-urls.js
+        run: node scripts/baidu-changed-urls.cjs
 
       - name: Baidu URL Push
         env:
