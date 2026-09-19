@@ -1,0 +1,53 @@
+name: Baidu URL Push
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/content/posts/**'
+      - 'src/content/projects/**'
+      - 'src/content/galleries/**'
+      - 'src/pages/**'
+      - 'src/layouts/**'
+      - 'src/components/**'
+      - 'astro.config.js'
+      - 'src/config.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/baidu-push.yml'
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: '额外推送的完整 URL，每行一个；不填则推送 sitemap 全量页面'
+        required: false
+        type: string
+
+concurrency:
+  group: baidu-push
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  baidu-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baidu URL Push
+        env:
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN || 'https://mingcy.cn' }}
+          SITEMAP_URL: ${{ vars.SITEMAP_URL || 'https://mingcy.cn/sitemap.xml' }}
+          BAIDU_SITE: ${{ secrets.BAIDU_SITE }}
+          BAIDU_TOKEN: ${{ secrets.BAIDU_TOKEN }}
+          BAIDU_BATCH_SIZE: '2000'
+          URLS: ${{ github.event.inputs.urls || '' }}
+        run: python scripts/baidu_push.py
