@@ -84,3 +84,18 @@ const images = Object.entries(allImages)
   .gallery-item:hover .gallery-overlay { opacity: 1; }
   .gallery-alt { font-size: 0.75rem; color: white; text-shadow: 0 1px 3px rgb(0 0 0 / 0.5); }
 </style>
+
+<!-- 实况图（HeoLivePhoto，/livephoto/heolivephoto.js）兼容层。
+     插件运行时会把实况图 img 包进一个匿名 <span>，并给 img 写入 inline 的
+     width:100% / height:auto / object-fit:contain。inline 样式压过上面的 .gallery-img，
+     会让 1:1 方格里的宽图只占上半截、下方留灰。
+     这里必须用 is:global：上方 <style> 是默认作用域，选择器会被 Astro 追加
+     [data-astro-cid-xxx]，而插件运行时创建的 <span> 没有这个属性，规则永不生效。
+     !important 用于压过插件写入的 inline 样式；这两个 class 只在本页模板内使用，无泄漏风险。 -->
+<style is:global>
+  .gallery-item > span { display: block !important; width: 100% !important; height: 100% !important; }
+  .gallery-item .gallery-img { width: 100% !important; height: 100% !important; object-fit: cover !important; transition: transform 0.4s ease, opacity 0.3s ease !important; }
+  /* 插件把 img 写成 position:relative + z-index:1（正值），会盖住
+     无 z-index 的悬浮图注层；提上来保持与其他相册页一致 */
+  .gallery-item .gallery-overlay { z-index: 3; }
+</style>

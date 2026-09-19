@@ -77,6 +77,32 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-09-19 18:50 - 文章页元信息栏：5 项同一行 + 图标统一为内联 SVG（去除 iconfont）
+
+**背景：** 用户要求文章页顶部的「发布日期（写入时间）、最后修改时间、字数、阅读时长、阅读量」5 项排成同一行，且每项前的图标不要用 iconfont，改为自己写/找 SVG。
+
+**现状（改前）：** `src/components/post/PostMetaInfo.astro` 里 5 项**已齐全**，但 ①容器 `flex flex-wrap gap-2` 在窄容器会换行；②图标混用 —— 发布日期/字数/阅读时长三项用 `iconfont`（`icon-calendar` / `icon-file-list` / `icon-timer`），最后修改时间/阅读量两项用内联 SVG（编辑笔 / 眼睛），风格不统一。
+
+**修改文件：**
+
+- `src/components/post/PostMetaInfo.astro`（仅此一个文件）
+
+**修改内容：**
+
+- **图标全部改为内联 SVG**，统一 lucide 线条风格（`viewBox="0 0 24 24"` + `fill="none"` + `stroke="currentColor"` + `stroke-width="2"` + `stroke-linecap="round"` + `stroke-linejoin="round"` + `aria-hidden="true"`），`width/height` 均为 `14`，`class="inline-block -mt-[1px]"`（沿用原编辑笔 SVG 的基线对齐写法）：
+  - 发布日期 → 日历图标（两条挂耳竖线 + `rect` 主体 + 横分隔线）
+  - 字数 → 文档图标（文件轮廓 + 折角 `polyline` + 两条横线）
+  - 阅读时长 → 时钟图标（`circle` + 指针 `polyline`）
+  - 最后修改时间 → 编辑笔（原有 SVG 保留）
+  - 阅读量 → 眼睛（在 `ReadCount.astro` 组件内，未改动）
+- **容器** `gap-2` → `gap-2.5`（0.625rem），拉开 5 项间距；保留 `flex-wrap` 作为移动端窄屏换行兜底（PC 端 1 行，窄屏自然换行，符合响应式习惯 —— 用户确认采用此方案）
+
+**不动的部分：** `RelativeDate.tsx`、`ReadCount.astro`、文章页 `[slug].astro` 的调用（`justify-center` 居中保持不变）、`Outdate.tsx` 过时提示卡、`PostArchiveInfo.astro` 分类标签、`config.json` / `astro.config.js` / `package.json` 均未改，无新增依赖。
+
+**验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints（119 files）；`pnpm exec astro build` 211 pages Complete。dist 核验：86 个含 PostMetaInfo 的文章页中，其容器段内 `iconfont` 出现次数 **全为 0**，`icon-calendar` / `icon-file-list` / `icon-timer` 三处死引用彻底消失；有 `lastMod` 的文章页（`2024/04/01/guide`）渲染 5 个 `<svg>`，无 `lastMod` 的文章页（`2026/07/16/remark`）渲染 4 个（符合 `{lastMod && (...)}` 条件逻辑）。
+
+**注意：** ①全站其它组件（Header / Footer 等）仍大量使用 iconfont，本次只收敛 PostMetaInfo 这一个组件，全站 iconfont 计数仍 >0 属正常；②`ReadCount.astro` 的眼球 SVG 在组件内部、未纳入本次统一，但风格本就与新增 SVG 一致（lucide `stroke-width:2` 线条），无需改动；③iconfont 图标本身依赖字体文件加载，改为内联 SVG 后这 3 项不再生成额外网络请求、也不会出现字体未加载时的豆腐块。
+
 ### 2026-09-17 23:25 - 四项修复：Twikoo 二级回复展开失效 & 相册灯箱直跳直链 & 昵称波浪线/站长标签 & 友圈移动端溢出
 
 **背景：** 用户一次报四个问题：①Twikoo 二级回复下继续新增回复后，点「展开」看不到下方评论；②`/galleries/junxun` 从导航栏直接访问时点击图片直接跳图片直链，只有带锚点的 `/galleries/junxun#gallery-1` 能弹出 Fancybox；③昵称下方要波浪线（颜色随每页随机强调色，浅色明显 / 深色柔和）+ 站长评论旁要「站长」标签带小装饰；④友圈页移动端仍有溢出。要求仅改必要代码，布局 / 功能 / 样式全部保留。
