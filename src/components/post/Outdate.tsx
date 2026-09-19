@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getDiffInDays, getFormattedDate } from '@/utils/date'
+import { getDiffInDays, getFormattedDateWithOptionalTime } from '@/utils/date'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export function Outdate({ lastMod }: { lastMod: Date }) {
@@ -22,7 +22,7 @@ export function Outdate({ lastMod }: { lastMod: Date }) {
           exit={{ opacity: 0 }}
         >
           <span>
-            这篇文章最后修改于 {getFormattedDate(lastMod)}
+            这篇文章最后修改于 {getFormattedDateWithOptionalTime(lastMod)}
             ，部分内容可能已经不适用，如有疑问可联系作者。
           </span>
         </motion.div>

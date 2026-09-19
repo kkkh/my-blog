@@ -52,7 +52,7 @@ async function generateSitemap(): Promise<string> {
   }
 
   for (const post of posts) {
-    const lastmod = post.data.date.toISOString().split('T')[0]
+    const lastmod = (post.data.lastMod || post.data.date).toISOString().split('T')[0]
     add(getPostUrl(post), '0.7', 'monthly', lastmod)
   }
 

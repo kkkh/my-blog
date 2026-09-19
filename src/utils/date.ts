@@ -48,6 +48,30 @@ export function getFormattedDateTime(date: Date) {
   return `${year} 年 ${month} 月 ${day} 日 ${hours}:${minutes}`
 }
 
+// 判断日期是否显式填写了时间。
+// 约定：frontmatter 只写日期时，content schema 会把时间归一到 UTC 正午（见 config.ts 的 noonDefault），
+// 所以「UTC 12:00:00」即代表「未填写时间」，据此决定是否展示时分。用 UTC 而非本地时区，
+// 保证哨兵与本机/CI/查看者时区无关。
+export function hasTimeFilled(date: Date) {
+  return !(date.getUTCHours() === 12 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0)
+}
+
+// 与 getFormattedDate 同款（2 位年份 + 星期），但填写了时间时追加「HH:MM」。
+// 用于发布日期 / 修改日期的绝对展示。
+export function getFormattedDateWithOptionalTime(date: Date) {
+  const base = getFormattedDate(date)
+  if (!hasTimeFilled(date)) return base
+  return `${base} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`
+}
+
+// 与 getFormattedDateTime 同款（4 位年份、无星期），但未填写时间时不追加时分。
+// 用于文末版权块的「最后修改时间」。
+export function getFormattedDateTimeWithOptionalTime(date: Date) {
+  const base = `${date.getFullYear()} 年 ${padZero(date.getMonth() + 1)} 月 ${padZero(date.getDate())} 日`
+  if (!hasTimeFilled(date)) return base
+  return `${base} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`
+}
+
 // 获取两个日期的相差的天数
 export function getDiffInDays(startDate: Date, endDate = new Date()) {
   return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 86400))
