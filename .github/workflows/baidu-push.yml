@@ -10,15 +10,18 @@ on:
       - 'src/pages/**'
       - 'src/layouts/**'
       - 'src/components/**'
+      - 'src/utils/**'
       - 'astro.config.js'
       - 'src/config.json'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/baidu-push.yml'
+      - 'scripts/baidu-changed-urls.js'
+      - 'scripts/baidu_push.py'
   workflow_dispatch:
     inputs:
       urls:
-        description: '额外推送的完整 URL，每行一个；不填则推送 sitemap 全量页面'
+        description: '手动指定完整 URL，每行一个；不填则推送 sitemap 全量页面'
         required: false
         type: string
 
@@ -38,16 +41,28 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Baidu URL Push
+      - name: Resolve changed URLs
         env:
           SITE_ORIGIN: ${{ vars.SITE_ORIGIN || 'https://mingcy.cn' }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node scripts/baidu-changed-urls.js
+
+      - name: Baidu URL Push
+        env:
           SITEMAP_URL: ${{ vars.SITEMAP_URL || 'https://mingcy.cn/sitemap.xml' }}
           BAIDU_SITE: ${{ secrets.BAIDU_SITE }}
           BAIDU_TOKEN: ${{ secrets.BAIDU_TOKEN }}
           BAIDU_BATCH_SIZE: '2000'
           URLS: ${{ github.event.inputs.urls || '' }}
+          CHANGED_POSTS_FILE: changed-urls.txt
         run: python scripts/baidu_push.py
