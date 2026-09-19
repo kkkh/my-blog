@@ -20,16 +20,27 @@ const allImages = import.meta.glob<{ default: ImageMetadata }>(
   { eager: true }
 )
 
-const images = Object.entries(allImages)
+const localImages = Object.entries(allImages)
   .filter(
     ([path]) =>
       path.startsWith(`/src/content/galleries/${slug}/`) && !path.includes("index")
   )
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([path, mod]) => ({
-    src: mod.default,
+    src: mod.default.src,
     alt: path.split('/').pop()?.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ') || title,
   }))
+
+const bodyImages = Array.from(entry.body?.matchAll(/<img\b[^>]*>/gi) || [])
+  .map((match) => {
+    const tag = match[0]
+    const src = /\bsrc="([^"]+)"/i.exec(tag)?.[1]
+    const alt = /\balt="([^"]+)"/i.exec(tag)?.[1] || title
+    return src ? { src, alt } : null
+  })
+  .filter((image): image is { src: string; alt: string } => Boolean(image))
+
+const images = localImages.concat(bodyImages)
 ---
 
 <PageLayout>
@@ -47,15 +58,15 @@ const images = Object.entries(allImages)
       <div class="gallery-grid" id="gallery-grid">
         {images.map((img, idx) => (
           <a
-            href={img.src.src}
+            href={img.src}
             class="gallery-item group"
             data-fancybox="gallery"
             data-no-swup
             data-caption={img.alt}
-            aria-label={`View image: ${img.alt}`}
+            aria-label=`View image: ${img.alt}`
           >
             <img
-              src={img.src.src}
+              src={img.src}
               alt={img.alt}
               class="gallery-img"
               loading={idx < 6 ? "eager" : "lazy"}

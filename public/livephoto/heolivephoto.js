@@ -561,13 +561,17 @@
   function scan(root) {
     var jobs = []
     ;(root || document)
-      .querySelectorAll('img[data-live-pvt], img[data-live-video], img[src$=".pvt" i]')
+      .querySelectorAll(
+        'img[data-live-pvt], img[data-live-video], img[src$=".pvt" i], img[data-live-motion]',
+      )
       .forEach(function (img) {
         var r = enhance(img)
         if (r) jobs.push(r)
       })
     ;(root || document)
-      .querySelectorAll('img[src$=".jpg" i], img[src$=".jpeg" i], img[src^="blob:"]')
+      .querySelectorAll(
+        'img[src$=".jpg" i], img[src$=".jpeg" i], img[data-live-motion], img[src^="blob:"]',
+      )
       .forEach(function (img) {
         if (img.dataset.liveReady) return
         if (img.hasAttribute('data-live-pvt') || img.hasAttribute('data-live-video')) return
