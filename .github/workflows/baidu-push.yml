@@ -32,6 +32,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  SITEMAP_URL: ${{ vars.SITEMAP_URL || 'https://mingcy.cn/sitemap.xml' }}
+
 jobs:
   baidu-push:
     runs-on: ubuntu-latest
@@ -59,7 +62,6 @@ jobs:
 
       - name: Baidu URL Push
         env:
-          SITEMAP_URL: ${{ vars.SITEMAP_URL || 'https://mingcy.cn/sitemap.xml' }}
           BAIDU_SITE: ${{ secrets.BAIDU_SITE }}
           BAIDU_TOKEN: ${{ secrets.BAIDU_TOKEN }}
           BAIDU_BATCH_SIZE: '2000'
