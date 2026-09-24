@@ -190,43 +190,176 @@
 ============================================================================ -->
   <div class="lp-waterfall" id="lpWaterfall">
 
-    <!-- 示例 1：Motion Photo（单张 .jpg 内嵌视频） -->
+    <!-- ⚠️ 实况效果的真实现已落在相册页本身，直接看：http://localhost:4321/galleries/person-life
+         本页是独立静态版（瀑布流 + 同套 Fancybox/HeoLivePhoto 逻辑），
+         需要在仓库根起静态服务器才能解析 /fancybox 与 /livephoto 绝对路径。
+
+    12 张实况照片，全部 .pvt 形态，素材来自 src/content/galleries/person-life/
+         转换命令：
+           node docs/live-photo-waterfall/convert.mjs              src/content/galleries/person-life/*.jpg              --out public/live-photos/person-life --pvt-only
+
+         .pvt = 封面 JPEG + 视频 MP4 打成一个 ZIP，下一次就能拿全。
+         data-cover 是必需的：缩略图首帧，不能等 fetch 解包完才有画面。
+         产物在 public/ 下，所以走绝对路径 ../../src/content/galleries/person-life/ ；
+         放在 src/content/galleries/ 里会被 [slug].astro 的 glob
+         （/src/content/galleries/**/*.{jpg,jpeg,png,...}）扫进普通相册。 -->
     <a class="lp-item"
        role="button"
        tabindex="0"
        data-fancybox="live-gallery"
        data-type="html"
-       data-cover="http://cdn.mingcy.cn/0a462322e9cd474586d672caae9efa2b_5_live.jpg"
-       data-motion="1"
+       data-pvt="../../src/content/galleries/person-life/1000015643.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015643.jpg"
        data-caption="一个人的生活才是常态 · 01">
       <img class="live-photo"
-           src="http://cdn.mingcy.cn/0a462322e9cd474586d672caae9efa2b_5_live.jpg"
+           src="../../src/content/galleries/person-life/1000015643.jpg"
            alt="实况照片 01" />
     </a>
 
-    <!-- 示例 2：封面 + 视频分离 -->
     <a class="lp-item"
        role="button"
        tabindex="0"
        data-fancybox="live-gallery"
        data-type="html"
-       data-cover="assets/live-02-cover.jpg"
-       data-video="assets/live-02.mp4"
-       data-caption="封面 + 视频分离形态">
-      <img class="live-photo" src="assets/live-02-cover.jpg" alt="实况照片 02" />
+       data-pvt="../../src/content/galleries/person-life/1000015644.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015644.jpg"
+       data-caption="一个人的生活才是常态 · 02">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015644.jpg"
+           alt="实况照片 02" />
     </a>
 
-    <!-- 示例 3：.pvt 单文件（不带 data-cover 也能用，解包后才显示画面） -->
     <a class="lp-item"
        role="button"
        tabindex="0"
        data-fancybox="live-gallery"
        data-type="html"
-       data-pvt="assets/live-03.pvt"
-       data-cover="assets/live-03-cover.jpg"
-       data-caption=".pvt 单文件形态">
-      <img class="live-photo" src="assets/live-03-cover.jpg" alt="实况照片 03" />
+       data-pvt="../../src/content/galleries/person-life/1000015645.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015645.jpg"
+       data-caption="一个人的生活才是常态 · 03">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015645.jpg"
+           alt="实况照片 03" />
     </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015646.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015646.jpg"
+       data-caption="一个人的生活才是常态 · 04">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015646.jpg"
+           alt="实况照片 04" />
+    </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015647.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015647.jpg"
+       data-caption="一个人的生活才是常态 · 05">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015647.jpg"
+           alt="实况照片 05" />
+    </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015648.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015648.jpg"
+       data-caption="一个人的生活才是常态 · 06">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015648.jpg"
+           alt="实况照片 06" />
+    </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015649.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015649.jpg"
+       data-caption="一个人的生活才是常态 · 07">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015649.jpg"
+           alt="实况照片 07" />
+    </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015650.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015650.jpg"
+       data-caption="一个人的生活才是常态 · 08">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015650.jpg"
+           alt="实况照片 08" />
+    </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015651.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015651.jpg"
+       data-caption="一个人的生活才是常态 · 09">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015651.jpg"
+           alt="实况照片 09" />
+    </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015652.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015652.jpg"
+       data-caption="一个人的生活才是常态 · 10">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015652.jpg"
+           alt="实况照片 10" />
+    </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015653.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015653.jpg"
+       data-caption="一个人的生活才是常态 · 11">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015653.jpg"
+           alt="实况照片 11" />
+    </a>
+
+    <a class="lp-item"
+       role="button"
+       tabindex="0"
+       data-fancybox="live-gallery"
+       data-type="html"
+       data-pvt="../../src/content/galleries/person-life/1000015654.pvt"
+       data-cover="../../src/content/galleries/person-life/1000015654.jpg"
+       data-caption="一个人的生活才是常态 · 12">
+      <img class="live-photo"
+           src="../../src/content/galleries/person-life/1000015654.jpg"
+           alt="实况照片 12" />
+    </a>
+
+
 
   </div>
 </div>
@@ -807,6 +940,20 @@
       B. data-cover="a.jpg" data-video="a.mp4"     封面 + 视频分离
       C. data-cover="a.jpg" data-motion="1"        Motion Photo
     素材解析优先级：data-video > 缩略图已解出的 blob > 自行解包 data-pvt > 静态封面
+    三种形态流量对比（同一张 818.9KB 的 Motion Photo，本地实测）：
+      A. Motion Photo 现状    2 × 818.9KB = 1.64MB   <img> 下一次 + fetch 下一次
+      B. 封面 + 视频分离      0.82MB               ← 最省，且 video 标签不需要 CORS
+      C. .pvt 单文件          1.04MB               比现状省一半，但 fetch 仍需 CORS
+      用旁边的 convert.mjs 可从 Motion Photo 一键拆出 B 和 C：
+        node convert.mjs 图片.jpg [图片2.jpg ...] --out 输出目录 [--dry-run] [--pvt-only]
+          --dry-run    只检测不写文件，先扫一批照片看哪些是 Motion Photo
+          --pvt-only   只产 .pvt + 封面（不产单独视频，配 data-pvt 用，最省空间）
+        默认产出 前缀.jpg / 前缀-video.mp4 / 前缀.pvt，零依赖。
+      产物请放 public/ 下（用绝对路径引用）：放在 src/content/galleries/ 里会被
+      [slug].astro 的 glob（/src/content/galleries/**/*.{jpg,jpeg,png,...}）扫进普通相册，
+      导致 .jpg 被当成重复图片。
+    纯静态图请优先用 .webp / .png / .avif：Heo 只对 src 以 .jpg/.jpeg/blob: 结尾
+    的 img 发 Motion Photo 探测请求（会整份重下一遍），其他后缀直接跳过。
 
   【部署注意】
     1. <a> 不要写 href。Fancybox 会把 href 当作品素材来源读取（# 开头的还会被

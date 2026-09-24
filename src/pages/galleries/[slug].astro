@@ -20,18 +20,50 @@ const allImages = import.meta.glob<{ default: ImageMetadata }>(
   { eager: true }
 )
 
-const localImages = Object.entries(allImages)
+// 实况照片资产：同名 .pvt 存在时，缩略图改用 .pvt。
+// 原 Motion Photo jpg 会让浏览器下载两遍整份文件（<img> 一遍 +
+// Heo 抽内嵌视频时 fetch 再一遍）；.pvt 一次下载同时拿到封面和视频。
+// 原图仍保留在网格数据里，只用作灯箱预览（点击放大），不进缩略图。
+const allPvt = import.meta.glob<string>("/src/content/galleries/**/*.pvt", {
+  query: "?url",
+  import: "default",
+  eager: true,
+})
+
+// 实况缩略图的加载占位：1x1 透明 gif。
+// 不能直接把 .pvt 当 img src —— 浏览器会尝试把 ZIP 渲染成图片而出一帧破图；
+// 也不能用 opacity:0 —— HeoLivePhoto 只在 DOMContentLoaded 扫一次，
+// 若扫描尚未执行（或解包失败）就会永远停在不可见。透明占位让 .gallery-item
+// 自己的浅灰渐变当加载态，Heo 解包完才把 img.src 换成 blob 封面。
+const LIVE_PLACEHOLDER =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+
+type GalleryImage = {
+  src: string
+  alt: string
+  live?: boolean
+  pvt?: string
+}
+
+const localImages: GalleryImage[] = Object.entries(allImages)
   .filter(
     ([path]) =>
       path.startsWith(`/src/content/galleries/${slug}/`) && !path.includes("index")
   )
   .sort(([a], [b]) => a.localeCompare(b))
-  .map(([path, mod]) => ({
-    src: mod.default.src,
-    alt: path.split('/').pop()?.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ') || title,
-  }))
+  .map(([path, mod]) => {
+    const file = path.split("/").pop() || ""
+    const base = file.replace(/\.[^.]+$/, "")
+    const pvt = allPvt[`/src/content/galleries/${slug}/${base}.pvt`]
+    return {
+      src: mod.default.src,
+      alt: base.replace(/[-_]/g, " ") || title,
+      live: Boolean(pvt),
+      pvt,
+    }
+  })
 
-const bodyImages = Array.from(entry.body?.matchAll(/<img\b[^>]*>/gi) || [])
+const bodyImages: GalleryImage[] = Array.from(entry.body?.matchAll(/<img\b[^>]*>/gi) || [])
   .map((match) => {
     const tag = match[0]
     const src = /\bsrc="([^"]+)"/i.exec(tag)?.[1]
@@ -40,7 +72,7 @@ const bodyImages = Array.from(entry.body?.matchAll(/<img\b[^>]*>/gi) || [])
   })
   .filter((image): image is { src: string; alt: string } => Boolean(image))
 
-const images = localImages.concat(bodyImages)
+const images: GalleryImage[] = localImages.concat(bodyImages)
 ---
 
 <PageLayout>
@@ -65,10 +97,14 @@ const images = localImages.concat(bodyImages)
             data-caption={img.alt}
             aria-label=`View image: ${img.alt}`
           >
+            <!-- 实况缩略图：src 是透明占位，HeoLivePhoto 解完 .pvt 后才会
+                 把 img.src 换成解包出的 blob 封面（loadPvt → img.src = m.cover）。
+                 href 仍指原 Motion Photo jpg：灯箱走静态预览，不会跳到 zip 直链。 -->
             <img
-              src={img.src}
+              src={img.live ? LIVE_PLACEHOLDER : img.src}
               alt={img.alt}
               class="gallery-img"
+              data-live-pvt={img.live ? img.pvt : undefined}
               loading={idx < 6 ? "eager" : "lazy"}
             />
             <div class="gallery-overlay">

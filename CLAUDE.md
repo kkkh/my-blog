@@ -1401,3 +1401,238 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 **验证：** 内联脚本 `node --check` 语法通过（18627 字符）；关键 DOM 标识核验 `data-type="html"` 存在、`href="#lp-player"` 出现 **0 次**；`heolivephoto.js` 30KB / `fancybox.umd.min.js` 98KB 均为本地静态文件，页面无任何 CDN 引用。
 
 **注意：** ①三个 `<a>` 的 `data-*` 都是**示例值**（`/assets/...` 指向的文件并不存在），用户要接自己的数据得替换 `demoData` 或直接改 HTML，缺文件时降级为静态封面不崩；②「不规则」靠 `.lp-item .live-photo { height:auto !important; object-fit:contain !important }` 实现——每张卡高度由图片**内建比例**决定，同列的卡上下拼接后高低不一、总宽度也各不相同；如果要固定比例封面（比如全部 3:4），改成 `aspect-ratio:3/4` + `object-fit:cover` 就行，但那就变成等高格子而非瀑布流；③`data-fancybox` 同值才会归为同一组轮播；示例已预填三种形态（`data-motion` 用真实 CDN 图，`data-video` 与 `data-pvt` 指向 `assets/` 下不存在的示例文件，接自己的数据时替换即可）；④`data-lp-id` **不用手写**——内联脚本给每张卡自动分配 `lp-item-0/1/2…`，并写进生成的 `.lp-player` 里；只要保证**每张卡的锚点唯一**（天然成立）且 `data-fancybox` 同值归为一组轮播即可。真实接数据时只需改 `<a>` 上的 `data-cover` / `data-video` / `data-pvt` / `data-motion` / `data-caption` 与内部 `<img src>`；⑤如果之后给相册页加了 Swup 页内导航，Fancybox 的 `data-swup-ignore-script` + `Fancybox.unbind(document.body)` 重新绑定那套还得照搬一遍（本项目 2026-09-13 记录的坑）；⑥Heo 的全局 scan 会对每个 `.jpg` 缩略图**多发一次整份下载**去探测 Motion Photo，静态图换 `.webp` 即可消除。
+
+### 2026-09-24 - Live Photo 素材工具链：Motion Photo → 拆分/.pvt 转换器 + demo 接真实素材 + 七牛 HTTPS 诊断
+
+**背景：** 用户问「能否把 jpg 转成 .pvt 加快加载」以及「七牛云的修改方案」。交付了两样东西：一个零依赖的转换脚本 + 对 `cdn.mingcy.cn` HTTPS 不可用的根因诊断。
+
+**交付文件：**
+
+- `docs/live-photo-waterfall/convert.mjs`（**新建**，Node ESM 零依赖，约 230 行）
+- `docs/live-photo-waterfall/sample-live.jpg`（**新建**，838537 B，从七牛拉的真实 Motion Photo，做本地示例）
+- `docs/live-photo-waterfall/assets/sample-live-cover.jpg`（226660 B）
+- `docs/live-photo-waterfall/assets/sample-live-video.mp4`（611877 B）
+- `docs/live-photo-waterfall/assets/sample-live.pvt`（838771 B）
+- `docs/live-photo-waterfall/index.html`（3 个示例锚点从占位路径改为真实素材；说明区补流量对比表）
+
+**流量实测（同一张 818.9 KB 的 Motion Photo）：**
+
+| 形态              | 总流量                      | 说明                                              |
+| ----------------- | --------------------------- | ------------------------------------------------- |
+| Motion Photo 现状 | **1.64 MB**（2 × 818.9 KB） | `<img>` 下一次 + `fetch` 下一次，同一份字节下两次 |
+| 封面 + 视频分离   | **0.82 MB**                 | 最省，且 `<video>` 标签不需要 CORS                |
+| `.pvt` + 单独封面 | **1.04 MB**                 | 比现状省一半                                      |
+
+**结论修正（用户原假设不成立）：** 转 `.pvt` 确实能把流量砍掉一半，但**「封面 + 视频分离」才是最优解**——比 `.pvt` 还省 20%，而且 `<video src>` 不走 `fetch`、不需要 CORS、跨域也能播。`.pvt` 的价值只在「一个文件对应一张照片」的批量部署场景。
+
+**转换算法（与 Heo 逐分支一致，非自创）：** 从 `heolivephoto.js` 的 `extractMotionFromBuffer` 移植：①先读 EXIF 的 `GCamera:MicroVideoOffset="N"`（Google 相机，精度最高），`videoStart = length - N`；②回退扫 `ffd9`（JPEG EOI）后 100 字节内找 `ftyp`，视频从 `ftyp` 前 4 字节起；③回找最近 `ffd9` 作为封面结束位；④双向校验（各 ≥1024 B、封面 `ffd8`、视频 `ft`@+4）。**纯字节切分，零重编码、零画质损失**——Motion Photo 本来就是 `[JPEG][MP4]` 粘连拼接。
+
+**ZIP 打包用 method 0（store）：** JPEG/MP4 本身已压缩，deflate 只会白费 CPU 且几乎不缩体积。
+
+**闭环实测（Node 22）：**
+
+- 转出 `.pvt` → `unzip -l` 正确列出 `sample-live.JPG` (226660) + `sample-live.MP4` (611877)，`file` 识别为 `Zip archive data, method=store`
+- **Heo 自己的 `extractPvt` 解析我生成的 .pvt**：解出字节与磁盘拆分文件**逐字节一致**（`cover == disk: true`、`video == disk: true`）
+- **交付 HTML 里原样抽出的 `unpackPvt` 解析同一个 .pvt**：封面 226660 B（FFD8/FFD9 完整）、视频 611877 B（`ftyp` 魔数正确），同样逐字节一致 → 生成端与消费端双向闭环
+
+**七云 HTTPS 根因（openssl 实测，非推测）：**
+
+```
+subject=CN=*.a.bdydns.com    ← 百度 DNS 的泛域名证书
+issuer=sslTrus (RSA) OV CA
+curl https://cdn.mingcy.cn/... → SEC_E_WRONG_PRINCIPAL（主机名不匹配）
+加 -k 忽略证书 → 403 Forbidden（nginx，Host 未匹配任何 HTTPS 监听）
+```
+
+即 `cdn.mingcy.cn` 的 443 端口当前挂在**另一个租户的证书**上 → 该域名的 HTTPS 绑定在七牛侧压根没生效。**CORS 不是问题**：http 下已回 `Access-Control-Allow-Origin: *`，无需改。唯一要修的就是证书。
+
+**⚠️ 混合内容铁律：** `http://` 的图片在 `https://` 页面上，`<img>` 能加载（被动混合内容放行），但 **`fetch()` 被主动混合内容拦截** → Motion Photo 探测失败 → 降级成死图。所以外链 Motion Photo 必须 `https://` + 证书主机名匹配 + CORS 放行，三个条件缺一不可；最稳的路径仍是把素材放本站同域（同源 fetch 不需要任何 CORS 头）。
+
+**注意：** ①`convert.mjs` 是 Node CLI（ESM），不能当浏览器脚本用；②`.pvt` 里内部文件名必须匹配 `/\.jpe?g$/i` 与 `/\.(mp4|mov)$/i`，脚本已按 `原名.JPG` / `原名.MP4` 生成；③`assets/` + `sample-live.jpg` 共约 2.46 MB 落在仓库里，若要瘦身只保留 `sample-live-cover.jpg` + `sample-live-video.mp4`（分离形态最省），删掉 `.pvt` 与源 jpg 即可；④demo 现在是**完全离线可跑**的，不再依赖七牛。
+
+### 2026-09-24 - Live Photo demo 收敛为 .pvt 主形态（删 Motion Photo 示例与源文件）
+
+**背景：** 用户拍板「不需要七牛云，先用 .pvt 看效果」。据此把 demo 从「三形态对照」收敛为「.pvt 主形态 + 分离形态对照」，彻底摆脱外部依赖。
+
+**修改文件：**
+
+- `docs/live-photo-waterfall/index.html`（示例锚点 3 → 2）
+- `docs/live-photo-waterfall/sample-live.jpg`（**删除**，838537 B）
+
+**修改内容：**
+
+- **删掉 Motion Photo 示例**：那种形态要 `<img>` 下整份 + `fetch` 再下一整份（818.9 KB × 2 = 1.64 MB），而且必须跨域 CORS 放行、证书主机名匹配、`https://`——三个条件绑死七牛的证书状态，正是用户想甩掉的依赖
+- **`.pvt` 升为示例 1（主形态）**，分离形态降为示例 2（对照）
+- 两个示例的 `data-fancybox` 都是 `live-gallery`，同一组轮播
+
+**最终形态与流量：**
+
+| 示例      | 属性                        | 总流量  | 备注                                  |
+| --------- | --------------------------- | ------- | ------------------------------------- |
+| 1（主）   | `data-pvt` + `data-cover`   | 1.04 MB | 一个 `.pvt` 打包封面+视频，下一次拿全 |
+| 2（对照） | `data-cover` + `data-video` | 0.82 MB | 各取所需，且 `<video>` 不需要 CORS    |
+
+`data-cover` 在两种形态下**都必需**——它是缩略图首帧，不能等 `fetch` 解包完才有画面。
+
+**验证：**
+
+- 内联脚本 `node --check` 通过（18627 字符）
+- 剔除 HTML 注释后真实锚点 **2 个**，`href=` 出现 **0 次**（Fancybox 靠 `data-fancybox` + `data-type="html"` 接管，锚点带 `#` 会让浏览器先改 hash 把灯箱顶下去）
+- `data-fancybox` 两组值全为 `live-gallery`（第三处匹配是 JS 模板串 `GROUP`，非 DOM）
+- 所有 `data-cover`/`data-video`/`data-pvt` 与 `src="assets/..."` 均指向存在的文件：`sample-live-cover.jpg` 221.3KB、`sample-live-video.mp4` 597.5KB、`sample-live.pvt` 819.1KB
+- demo 总占 **1.7 MB**（删源 jpg 前 2.5 MB）
+
+**注意：** ①demo 现在完全离线可跑，零外部请求；②`data-motion` 在文件里仍有 8 处，全部在 `<script>` 逻辑与用法说明注释里（示例锚点已无），别当成残留；③若要再瘦 598 KB 可删 `sample-live-video.mp4` 并去掉示例 2，只留 `.pvt` 单形态；④用户自己的批量照片走 `node convert.mjs 图片.jpg --out assets` 即可，产物文件名带原名前缀。
+
+### 2026-09-24 - person-life 相册 12 张 Motion Photo 转 .pvt，demo 从占位换真实素材
+
+**背景：** 用户拍板「不需要七牛云，先用 .pvt」，并指定用 `src/content/galleries/person-life/` 里的真实照片做实体转 .pvt。
+
+**关键发现（必须先知道）：** `src/pages/galleries/[slug].astro` 的 glob 是
+`/src/content/galleries/**/*.{jpg,jpeg,png,webp,avif,gif,JPG,JPEG,PNG,WEBP}`，**递归匹配所有图片扩展名**。所以 `.pvt` 产物**不能**放回 `person-life/` 目录——`1000015647-cover.jpg` 会被扫进普通相册页，造成图片重复。产物一律放 `public/` 下走绝对路径引用。
+
+**修改文件：**
+
+- `public/live-photos/person-life/`（**新建**，12 × `.pvt` + 12 × `-cover.jpg` = 20.94 MB）
+- `docs/live-photo-waterfall/convert.mjs`（新增 `--dry-run` / `--pvt-only` 两个开关 + 汇总统计）
+- `docs/live-photo-waterfall/index.html`（示例锚点 2 → 12，全部指向真实素材）
+- `docs/live-photo-waterfall/assets/`（**删除**，1.64 MB 占位素材已被真实素材取代）
+
+**转换命令：**
+
+```bash
+node docs/live-photo-waterfall/convert.mjs \
+  src/content/galleries/person-life/*.jpg \
+  --out public/live-photos/person-life --pvt-only
+```
+
+**结果：12 / 12 全部是真 Motion Photo**（无一漏网），总源体积 16.71 MB：
+
+| 封面合计 | 视频合计 | .pvt 合计 |
+| -------- | -------- | --------- |
+| 4.22 MB  | 12.49 MB | 16.71 MB  |
+
+单张最大 `1000015651.pvt` 2.66 MB（封面 761KB + 视频 1.83MB），最小 `1000015654.pvt` 369KB。
+
+**验证（Heo 真实 `extractPvt` 批量解析全部 12 个产物）：**
+
+- **12 / 12 通过**：封面字节与磁盘 `-cover.jpg` **逐字节一致**、JPEG 魔数 `FFD8`/`FFD9` 完整、视频 `ftyp` 魔数正确
+- 解析耗时 6–23 ms / 张（2.6MB 的大文件 23ms）
+- 锚点核验：真实锚点 **12 个**、`href=` **0 次**、素材引用 24 条（12 `.pvt` + 12 `cover`）**全部命中 `public/`**
+- 内联脚本 `node --check` 通过
+- **原件未动**：`src/content/galleries/person-life/` 仍是 12 个原始 jpg，相册页不受影响
+
+**流量账（12 张全量）：**
+
+| 形态              | 总流量                                        |
+| ----------------- | --------------------------------------------- |
+| Motion Photo 现状 | **33.42 MB**（2 倍下载）                      |
+| `.pvt` + 单独封面 | **20.94 MB** ← 当前方案，省 37%               |
+| 封面 + 视频分离   | **16.71 MB** ← 极限，但多 24 个文件、目录更碎 |
+
+**注意：** ①`public/live-photos/` 新增 21 MB，仓库体积明显上升；要瘦身可把大文件（`1000015648/49/51/52/53`，单张 1.4–2.6MB）先压一遍再转，或用分离形态省 4.2MB 封面重复；②demo 里 12 个锚点的 `data-fancybox` 全是 `live-gallery`，同一组轮播；③素材在 `public/` 下走**同源**，不需要任何 CORS 头，跟外部 CDN 彻底解耦；④`1000015647` 就是之前从七牛拉下来测过的那张，转换结果可交叉印证；⑤`.download-tmp/` 是空目录（之前下载残留），无害。
+
+### 2026-09-24 - 实况照片落进真实相册页：person-life 12 张改 .pvt，省一半流量
+
+**背景：** 用户看不到效果图——`/docs/live-photo-waterfall` 在 Astro 下 404（`docs/` 不是路由目录，Astro 只伺服 `src/pages/`），`npx serve` 装不上。用户拍板「直接在 person-life 目录下更改即可」。
+
+**⚠️ 先纠正一个认知：person-life 相册页原本就已经在放实况了。** `HeoLivePhoto` 的 `scan()` 会自动匹配 `img[src$=".jpg" i]` 并把 Motion Photo 候选整份 fetch 出来抽内嵌视频。所以之前 12 张原图一直是实况态——只是每次要看就要下两遍整份文件（`<img>` 一遍 + Heo 抽视频 fetch 再一遍）。真正的相册 URL 是 `http://localhost:4321/galleries/person-life`。
+
+**修改文件：**
+
+- `src/content/galleries/person-life/`：新增 12 个 `.pvt`（16.71 MB），**12 张原始 jpg 一个字节没动**
+- `src/pages/galleries/[slug].astro`：新增实况分支
+- `docs/live-photo-waterfall/index.html`：锚点改指源码目录
+- `public/live-photos/`：**删除**（之前误建的 21 MB 重复副本）
+
+**关键实现（`[slug].astro`）：**
+
+```js
+const allPvt =
+  import.meta.glob <
+  string >
+  ('/src/content/galleries/**/*.pvt',
+  {
+    query: '?url',
+    import: 'default',
+    eager: true,
+  })
+```
+
+- **`.pvt` 不会被图片 glob 误扫**：图片 glob 只匹配 `{jpg,jpeg,png,webp,avif,gif}`，`.pvt` 不在其中 → 可以直接跟原图同目录放
+- **缩略图用 `.pvt`，灯箱用原 jpg**：`src={img.live ? img.pvt! : img.src}` + `data-live-pvt`；`href` 仍指原图 → Fancybox 照常开静态预览，**不会跳到 zip 直链**，左右滑动/键盘切换全保留
+- **`opacity:0` 破图遮罩**：浏览器会先尝试把 ZIP 当图片渲染出一帧破图。`.pvt` 分支里 Heo 是 `img.style.cssText += '...opacity:1...'`（追加不是覆盖，后面的声明胜出），配合 `.gallery-img` 的 `transition: opacity 0.3s` 得到淡入；解包期间用户看到的是 `.gallery-item` 的浅灰背景，等于加载占位
+- Vite 对 `.pvt` 只做哈希改名，**内容零改动**（12/12 字节一致 + `PK\x03\x04` 魔数正确）
+
+**验证：** `astro check` 0 errors / 0 warnings / 0 hints；`astro build` 211 pages。dist 核验 `dist/galleries/person-life/index.html`：`data-live-pvt` **12**、`style="opacity:0"` **12**、`data-fancybox="gallery"` **12**（灯箱保留）、`gallery-img` **12**。用 Heo 真实 `extractPvt` 跑 dist 全部 12 个 `.pvt`：**12/12 通过**（封面 `FFD8…FFD9` 完整、视频 `ft` 魔数正确，耗时 2–7 ms）。
+
+**流量账（12 张全量）：**
+
+|                               | 总下载       | 缩略图首帧                       |
+| ----------------------------- | ------------ | -------------------------------- |
+| 改前（Motion Photo 双下）     | **33.42 MB** | 快（jpg 段可流式渲染）           |
+| 改后（`.pvt` + 灯箱按需原图） | **16.71 MB** | 快一帧（等 .pvt 解包，灰底占位） |
+
+灯箱点开单张才额外下 1–2.6 MB 原图，且走浏览器缓存。
+
+**注意：** ①`.pvt` 经 Vite 哈希改名（`1000015643.Ca00nQr7.pvt`），改图会换全部 URL，静态站全量重建无影响；②若某张 `.pvt` 解包失败，该格会一直停在灰底占位（原图被隐藏了）——原文件仍在磁盘，删掉对应 `.pvt` 即回退；③`.download-tmp/` 是空目录（历史下载残留），无害；④`docs/live-photo-waterfall/` 现在是独立静态设计稿，需在仓库根起静态服务器；真实现以相册页为准。
+
+### 2026-09-24 - 【修正】实况照片在 Swup 切页后完全失效：HeoLivePhoto 无切页重扫钩子
+
+**现象：** 用户反馈 `localhost:4321/galleries/person-life` 实况"不能正常读取"——12 个格子全停在灰色占位，一点反应都没有。
+
+**根因（上一条记录的技术方案本身是错的）：**
+
+1. **`HeoLivePhoto` 只在 `DOMContentLoaded` 扫一次，没有任何 Swup/MutationObserver 钩子。** 源码 588–591 行：`if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { scan() }) else scan()`。Swup 用 innerHTML 替换 `<main>`，新进来的 `img[data-live-pvt]` 永远不会被 `enhance()`。站点里其它所有客户端逻辑（Fancybox、Twikoo、评论驱动、朋友圈、滚动降级）全都自己补了 `swup:page:view` + `astro:page-load` 监听，**只有 HeoLivePhoto 这个第三方脚本没人替它补**。
+2. **上一条记录加的 `style="opacity:0"` 把"没被扫描"从"破图"变成"永久隐形"，把 bug 掩盖成了"完全没反应"。** 之前如果 Heo 没扫，用户至少还能看到破图；现在只看到灰底，误以为是我改坏了。
+
+**修正 ①（主修）— `src/layouts/Layout.astro` 667 行后新增 body 级常驻脚本：**
+
+```html
+<script is:inline src="/livephoto/heolivephoto.js" defer></script>
+<script is:inline data-swup-ignore-script>
+  ;(function () {
+    var LIVE_SEL =
+      'img[data-live-pvt], img[data-live-video], img[data-live-motion], img[data-live-photo], img[src$=".pvt" i], img[src$=".jpg" i], img[src$=".jpeg" i]'
+    function rescanLivePhotos() {
+      if (typeof HeoLivePhoto === 'undefined' || !HeoLivePhoto.scan) return
+      if (!document.querySelector(LIVE_SEL)) return
+      try {
+        var r = HeoLivePhoto.scan()
+        if (r && typeof r.then === 'function') r.catch(function () {})
+      } catch (e) {}
+    }
+    document.addEventListener('swup:page:view', function () {
+      setTimeout(rescanLivePhotos, 200)
+    })
+    document.addEventListener('astro:page-load', function () {
+      setTimeout(rescanLivePhotos, 200)
+    })
+  })()
+</script>
+```
+
+- `HeoLivePhoto.scan()` 是官方公开 API（592 行 `window.HeoLivePhoto = { scan, bindPlayback, reset }`），幂等（`img.dataset.liveReady` 守卫 + `pvtCache` 去重），重复调用无副作用
+- `LIVE_SEL` 完整照抄 `scan()` 自己的两个 `querySelectorAll` 选择器并集，**Motion Photo 原图模式（无 `data-*` 属性）同样能被重扫**——之前它在 Swup 切页后也是坏的
+- `data-swup-ignore-script` 必须加：监听器挂在 `document` 上、Swup 永不替换；不加标记会被 `SwupScriptsPlugin` 每切一次页克隆重跑、监听器无限累加（和 Fancybox 初始化脚本同一个坑，写法一致）
+- `setTimeout(..., 200)` 与 Fancybox 的 `initFancybox` 同款延迟，等 Swup 把新 DOM 落完
+
+**修正 ② — `[slug].astro` 把 `opacity:0` 换成透明 1×1 gif 占位：**
+
+```js
+const LIVE_PLACEHOLDER =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+// src={img.live ? LIVE_PLACEHOLDER : img.src}   ← 原来是无条件的 opacity:0
+```
+
+- **绝不能用 `opacity:0` 做加载遮罩**：Heo 的 `opacity:1` 是 `img.style.cssText += '...'` 追加出来的，只在 `enhance()` 真正执行时才会出现。一旦扫描没跑（或 `.pvt` 解包失败），图就永久隐形——正是这次故障的直接放大器
+- 透明占位让 `.gallery-item` 自己的浅灰渐变当加载态，视觉是"加载中"而不是"坏了"，失败模式可诊断
+- Heo 解包完成后自己把 `img.src` 换成 blob 封面（`loadPvt → img.src = m.cover`），不需要我在外面再动一次
+
+**端到端验证（对运行中的 dev server 走真实 HTTP 链路）：** 直接 `eval` heolivephoto.js 的 `entryData / extractPvt / pvtCache / loadPvt` 四段原样代码（17–100 行，一字节没改），用 `fetch` 打 `http://localhost:4399/src/content/galleries/person-life/*.pvt`，**12/12 全部返回 `{cover: blob URL, video: blob URL}`**，耗时 11–132 ms。说明 fetch → arrayBuffer → ZIP 解包 → blob 这条链在浏览器同等环境下是通的，问题 100% 出在"没人调 `scan()`"。
+
+**dev 产物核验：** `data-live-pvt` 12、透明 gif 占位 12、`style="opacity:0"` **0**、`data-fancybox="gallery"` 12、"12 张照片"；`dist/index.html` 含 `rescanLivePhotos`×3 + `HeoLivePhoto.scan` + `swup:page:view` + `astro:page-load` + `data-swup-ignore-script`。`astro check` 0 errors / 0 warnings / 0 hints；`astro build` 211 pages。
+
+**⚠️ 事故记录（务必看）：** 排查中发现 **12 张原始 jpg 从工作区凭空消失**（`git status` 显示 ` D` 12 个 tracked 文件被删，`.pvt` 幸存）。用 `git checkout -- src/content/galleries/person-life/` 全量恢复，事后逐个字节校验：12/12 仍是合法 Motion Photo（JPEG 头 + 全文件扫描到 `ftyp`）且与最初下载件字节一致。**根因未查明**，排查过的方向都排除了：`docs/live-photo-waterfall/convert.mjs` 无 `unlink/rmSync` 逻辑；`.git/hooks/pre-commit` 是 `lint-staged`（我这次会话没 commit）；Astro 的图片处理不会删源文件。`.download-tmp/` 里留着一份原始下载件（21 MB）已一并删除——jpg 在 git 里就是备份。若再发生同类丢失，直接从 git 恢复，不要试图用 `.pvt` 里的封面倒推（那是重压缩过的，不是原文件）。
+
+**教训（写进以后的实现准则）：** ①**接任何第三方客户端脚本，第一件事就是确认它自己的 DOMContentLoaded/resize/路由钩子有哪些，站点是 Swup SPA，缺的钩子必须自己在 body 级补上**——HeoLivePhoto 就是漏了这一环；②**加载遮罩不要用 `opacity:0` 依赖"第三方稍后会改回来"这种假设**，第三方不跑就等于永久隐形，要用透明占位这类"看起来是加载中"的中性形态；③改文件前先 `git status`，别信 `ls | grep -v` 这种过滤后的输出就断言"文件还在"。

@@ -665,5 +665,33 @@ const { title, description, image } = Astro.props
     </script>
     <!-- LivePhoto 实况照片支持 -->
     <script is:inline src="/livephoto/heolivephoto.js" defer></script>
+    <!-- HeoLivePhoto 自身只在 DOMContentLoaded 扫一次（无 MutationObserver、无 Swup
+         钩子），所以用 Swup 从任意页跳进相册页时，main 被 innerHTML 替换，
+         新进来的 img[data-live-pvt] 永远不会被 enhance → 实况全失效。
+         这里补一刀：切页后手动重扫。Heo 自身幂等（img.dataset.liveReady 守卫）。
+         标记 data-swup-ignore-script：监听器挂在 document 上、Swup 永不替换，
+         不加标记会被每切一次页克隆重跑、监听器无限累加（同 Fancybox 的写法）。 -->
+    <script is:inline data-swup-ignore-script>
+      (function () {
+        var LIVE_SEL =
+          'img[data-live-pvt], img[data-live-video], img[data-live-motion], img[data-live-photo], img[src$=".pvt" i], img[src$=".jpg" i], img[src$=".jpeg" i]'
+        function rescanLivePhotos() {
+          if (typeof HeoLivePhoto === 'undefined' || !HeoLivePhoto.scan) return
+          if (!document.querySelector(LIVE_SEL)) return
+          try {
+            var r = HeoLivePhoto.scan()
+            if (r && typeof r.then === 'function') r.catch(function () {})
+          } catch (e) {
+            /* 解包失败已由 Heo 内部记录，不能在这里抛到 Swup */
+          }
+        }
+        document.addEventListener('swup:page:view', function () {
+          setTimeout(rescanLivePhotos, 200)
+        })
+        document.addEventListener('astro:page-load', function () {
+          setTimeout(rescanLivePhotos, 200)
+        })
+      })()
+    </script>
   </body>
 </html>
