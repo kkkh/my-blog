@@ -1326,3 +1326,78 @@ $env:GIT_PROXY_COMMAND='C:\Program Files\Git\mingw64\bin\connect.exe -S 127.0.0.
 **验证：** `pnpm exec astro check` 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 210 pages Complete。dist 核验：`dist/twikoo/` 已不存在；209 个 HTML 同时引用 jsDelivr 主源与 unpkg 备源，`/twikoo/twikoo.all.min.js` 残留 0 处；`_spec_.*.css` 含 `flex:1 1 100%` / `flex:0 0 100%` / `writing-mode:horizontal-tb` / `.55rem` 缩进 / `max-height:220px`；`fcircle.*.css` 含 `@media (max-width:768px)` 块与 3 处 `minmax(0,1fr)`。
 
 **注意：** ①CDN 版本钉死 1.7.19，升级需同时改 `Layout.astro` 两处 URL 与云函数 `twikoo-vercel` 版本；②若用户浏览器把 jsDelivr 与 unpkg 都拦掉（跟踪防护），评论会显示「Twikoo 加载失败」——这正是本项目此前 cdnjs→jsDelivr 的同类风险，回退方案是把官方包重新放回 `public/twikoo/` 并把 `.prettierignore` 加上 `public/`（避免再被 prettier 重排膨胀）；③本次仅删 `public/twikoo/`，`.prettierignore` 未改；④`public/waline/`、`public/fclite/`、`public/fancybox/` 仍为本地静态文件，不受影响。
+
+### 2026-09-24 - Live Photo 瀑布流交付 `docs/live-photo-waterfall/index.html`（瀑布流 + HeoLivePhoto 缩略图实况 + Fancybox 灯箱视频，零第三方库）
+
+**背景：** 用户要一个「图片瀑布流 + 点击放大 + 灯箱里播放实况」的交付页。要求瀑布流**不引第三方库**，但实况播放允许用本地 `/livephoto/`，点击放大可用本地 `/fancybox/`。用户中途补充三点：① 支持「封面 + 独立视频文件」形态（`.pvt` / `data-video` / Motion Photo 三种都覆盖）；② 尽量不用第三方，**不依赖 Swup**；③ 瀑布流布局**必须像瀑布流**——宽度有变化、高度有变化、不规则。
+
+**交付物：** `docs/live-photo-waterfall/index.html`（单文件，约 900 行，可整份复制走），依赖仅两个本地静态文件：`/fancybox/fancybox.min.css` + `fancybox.umd.min.js`、`/livephoto/heolivephoto.js`。零 jQuery、零 Masonry、零 CDN。
+
+**瀑布流：CSS `column-count`（核心决策）**
+
+- 纯 CSS，零 JS 零布局计算；`column-count:4` + `column-gap:20px`，断点 1100/700/460px 逐级降到 3/2/1 列
+- `li { break-inside:avoid; -webkit-column-break-inside:avoid; page-break-before:avoid; margin:0 0 20px }` —— 缺 `-webkit-` 前缀时 Safari 会把卡片拦腰劈开
+- **不规则从哪来**：`<img>` 天然保留各自宽高比 + 每张卡 `padding:7px 7px 40px` 的相框边距 + 标题行数 1~3 行浮动（`line-clamp:2`）→ 每张卡片高度天然不同，同一列从上到下宽度也各不相同，视觉上就是真正的瀑布流，而不是等高网格
+- 明确拒绝 `display:grid`（会撑成等高行）与 `display:flex` 分列（高度分配靠 JS、列数变化要重排）
+
+**数据契约（三种实况形态 + 静态图，全部走同一个 `<a>`）**
+
+```html
+<a
+  data-fancybox="live-gallery"
+  data-type="html"
+  data-lp-id="demo-1"
+  data-lp="1"
+  data-pvt="/assets/pvt/IMG_0001.pvt"
+  data-cover="/assets/jpg/IMG_0001.JPG"
+  data-caption="实况照片"
+  ><span class="lp-item">…</span></a
+>
+```
+
+- `data-pvt`（ZIP：JPEG 封面 + MP4） / `data-cover`+`data-video`（封面 + 独立视频） / `data-cover`+`data-motion="1"`（Motion Photo，视频嵌在 jpg 里） / 无 `data-*` = 纯静态图
+- 优先级：`data-video` > 缩略图解出来的 blob > `data-pvt` > `data-cover` 兜底
+- **关键**：`<a>` 上不放 `href`（Fancybox 靠 `data-fancybox` + `data-type` 接管，不会去导航）；`href` 一旦带 `#` 锚点，浏览器会在 Fancybox 处理前先改 hash → 页面滚到目标元素下方、灯箱看不见（本项目相册页踩过同款坑）
+
+**HeoLivePhoto 接入（源码级核实，非猜）**
+
+- `data-live-pvt` / `data-live-video` / `data-live-motion` 三个属性名**逐字核实**存在于 `heolivephoto.js` 的 `enhance()`（`/\.pvt$/i.test(src) || getAttribute('data-live-pvt')`、`getAttribute('data-live-video')`）；`data-live-badge` 也支持
+- **`scan()` 是异步的且会在 DOMContentLoaded 对**整个 document**自动跑一次**（`window.HeoLivePhoto = { scan, bindPlayback, resetPlayback }`，`scan` 返回 `Promise.allSettled(jobs)`）→ 属性归一化必须**同步**完成，否则 Heo 先扫会把 `.pvt` 项当成普通 jpg 去探测 Motion Photo。故内联脚本直接 `init()`，不再挂 DOMContentLoaded
+- **`.pvt` 项的 `img.src` 会被 Heo 换成 blob 封面**，所以缩略图视频要复用就用 `querySelector('video[src^="blob:"]')` 取；实测 Heo 全文件 **0 处 `revokeObjectURL`**，blob 全页有效，可安全复用到灯箱
+- **Heo 只对 `src` 以 `.jpg`/`.jpeg`/`blob:` 结尾的 img 发 Motion Photo 探测请求（会整份重下一遍）** → 静态图请用 `.webp`/`.png`/`.avif`，那种后缀 `enhance()` 直接 `return null`，零多余请求
+- **Heo 会往缩略图里塞内联样式**（`span` 包 `display:inline-block`、`img` 改 `width:100%;height:auto`）→ 必须用 `!important` 顶掉：`.lp-item > span { display:block !important; height:auto !important; ... }` + `.lp-cover { display:block !important; width:100% !important; height:auto !important; aspect-ratio:3/4; object-fit:cover }`。不用固定高度反而正好让瀑布流的不规则高度成立
+
+**Fancybox 6.0.29（本地版）HTML 类型 + 视频播放（源码逐条核对）**
+
+- `data-type="html"` 合法：构造器把 `'html'` 映射到 `options.html`；`resolveSource` 里 `i === "html"` 分支直接把字符串当 HTML 注入
+- **`type: 'html'` 选项不存在**（6.0.29），文档里写的是 `data-type`
+- **`contentClick` 选项不存在**；点内容区域触发的是**可 `preventDefault` 取消的 `backdropClick`** 事件，用 `event.composedPath()[0]` 判断点的是内容还是遮罩
+- **`Carousel.attachSlideEl` 事件不存在**（Fancybox 无公开事件常量表，只能翻 bundle）；真正挂 HTML 单张的是 `Carousel.contentReady`，远端 slide 被重新挂回 DOM 时触发的是 **`Carousel.attachSlideEl`**——两者都要监听，否则「切走再切回」视频不会重播
+- **`data-caption` 读取走 `.textContent.trim()`**（`r.contentDocument.querySelector(o).textContent`），所以 caption 必须作为 HTML 里的一个文本节点，不能只挂属性
+- **单实例 + 全页轮播 vs 多实例**：所有 `<a>` 挂同一个 `data-fancybox="live-gallery"` 值 → Fancybox 归为同一组，左右键 / 触屏滑动 / 无限循环全打通；不同值 = 独立实例、各自独立轮播
+- 配置：`touch:{vertical:true}`、`Carousel:{infinite:true}`、`preload:1`、`Keyboard:{enable:true}`、`backdrop:true`、`dragToClose:false`（否则点内容区关闭，与视频播放冲突）
+- **`Carousel.settle` 只保证「过渡动画结束」**，不保证视频帧解码完成 → 不能拿它当「封面可以淡出」的信号，必须用 `video.canplay`
+
+**播放器生命周期（防「同时播好几个」）**
+
+- `Fancybox.unbind(document.body)` + 重新 `bind()`：不 unbind 会累积重复实例，每次切页多绑一个
+- **`is-selected` 类确实加在 slide 元素上**（bundle 里 `we(ne(s), b.classes.isSelected)`，`we`=addClass、`Le`=removeClass）→ 据此判断播放器归属
+- `prunePlayers()`：只保留「当前 slide」的播放器，其余 `pause()` + 摘掉 `autoplay` 防自动重播；挂到 `Carousel.change` / `Carousel.settle` / `close` / `destroy`
+- `resumeVideo()` 切回来要**重新登记**到 `activePlayers`，否则上次 `prune` 拿掉记录后再也停不掉它
+- **自动播放可能被浏览器拦下**（还没和页面交互过）→ `.catch()` 静默降级为静态封面 + 转圈消失，不报错不卡死
+
+**实况视频叠层的显示时机（易错点）**
+
+- `video` 初始 `opacity:0` + `is-waiting`，`.lp-spin` 转圈可见，直到 `canplay` 才 `opacity:1` —— 这样「封面打底 + 视频覆盖」的架构在整个加载期都成立，不会白屏
+- 转圈用 `border:2px solid rgba(255,255,255,.25)` + `border-top-color: var(--accent)` + `border-radius:50%`（**不能** `border-style:dotted`，那是圆点边框不是转圈）
+
+**`.pvt` 解包器（Node 实测逐字节通过）**
+
+- 手写 ZIP 解析：EOCD 尾部**反向**扫描 → 中央目录逐个条目 → 本地文件头 data offset → `method===0` 直接切片、`method===8` 走 `DecompressionStream('deflate-raw')`
+- 支持 ZIP64 回退；**无 zip 库依赖**，只用 `TextDecoder` / `DecompressionStream` / `URL.createObjectURL`（均 Chromium/Firefox/Safari 全支持）
+- 同一 URL 的解码结果用 Map 缓存，缩略图和灯箱共用一次解码
+- **实测**：Node 22 合成一个真 ZIP（JPEG 走 method 0、MP4 走 method 8 deflate）→ 解出的封面 42 字节与原文**完全一致**、视频 200 字节与原文**完全一致**、`ftyp` 魔数正确、缓存复用命中、`escapeAttr` 正确转义。测的是**从交付文件里原样抽出的代码**，不是重打一份
+
+**验证：** 内联脚本 `node --check` 语法通过（18627 字符）；关键 DOM 标识核验 `data-type="html"` 存在、`href="#lp-player"` 出现 **0 次**；`heolivephoto.js` 30KB / `fancybox.umd.min.js` 98KB 均为本地静态文件，页面无任何 CDN 引用。
+
+**注意：** ①三个 `<a>` 的 `data-*` 都是**示例值**（`/assets/...` 指向的文件并不存在），用户要接自己的数据得替换 `demoData` 或直接改 HTML，缺文件时降级为静态封面不崩；②「不规则」靠 `.lp-item .live-photo { height:auto !important; object-fit:contain !important }` 实现——每张卡高度由图片**内建比例**决定，同列的卡上下拼接后高低不一、总宽度也各不相同；如果要固定比例封面（比如全部 3:4），改成 `aspect-ratio:3/4` + `object-fit:cover` 就行，但那就变成等高格子而非瀑布流；③`data-fancybox` 同值才会归为同一组轮播；示例已预填三种形态（`data-motion` 用真实 CDN 图，`data-video` 与 `data-pvt` 指向 `assets/` 下不存在的示例文件，接自己的数据时替换即可）；④`data-lp-id` **不用手写**——内联脚本给每张卡自动分配 `lp-item-0/1/2…`，并写进生成的 `.lp-player` 里；只要保证**每张卡的锚点唯一**（天然成立）且 `data-fancybox` 同值归为一组轮播即可。真实接数据时只需改 `<a>` 上的 `data-cover` / `data-video` / `data-pvt` / `data-motion` / `data-caption` 与内部 `<img src>`；⑤如果之后给相册页加了 Swup 页内导航，Fancybox 的 `data-swup-ignore-script` + `Fancybox.unbind(document.body)` 重新绑定那套还得照搬一遍（本项目 2026-09-13 记录的坑）；⑥Heo 的全局 scan 会对每个 `.jpg` 缩略图**多发一次整份下载**去探测 Motion Photo，静态图换 `.webp` 即可消除。
