@@ -94,7 +94,7 @@ const images: GalleryImage[] = localImages.concat(bodyImages)
         {images.map((img, idx) => (
           <a
             href={img.live ? undefined : img.src}
-            class="gallery-item group"
+            class={`gallery-item group${img.live ? ' gallery-live' : ''}`}
             data-fancybox="gallery"
             data-no-swup
             data-caption={img.alt}
@@ -160,6 +160,26 @@ const images: GalleryImage[] = localImages.concat(bodyImages)
   .gallery-item:hover {
     border-color: rgb(from var(--color-accent) r g b / 0.4);
     box-shadow: 0 4px 24px rgb(from var(--color-accent) r g b / 0.12);
+  }
+  /* 实况项加载态：缩略图在 Heo 解包 .pvt 前是 1x1 透明 gif，若不设可见底色
+     就是一块空白（之前被误判为「页面空白」）。深灰扫光明确传达「实况图加载中」；
+     解包后 img 换成不透明 blob 封面，把扫光完全盖住。 */
+  .gallery-item.gallery-live {
+    background: linear-gradient(
+      90deg,
+      rgb(from var(--color-text-primary) r g b / 0.08) 25%,
+      rgb(from var(--color-text-primary) r g b / 0.16) 37%,
+      rgb(from var(--color-text-primary) r g b / 0.08) 63%
+    );
+    background-size: 400% 100%;
+    animation: gallery-shimmer 1.8s ease infinite;
+  }
+  @keyframes gallery-shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gallery-item.gallery-live { animation: none; }
   }
   /* 图片：严格按原始比例渲染，无裁切、无拉伸。
      width/height 属性预留尺寸防布局跳动；height:auto 让高度按比例。 */

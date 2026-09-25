@@ -1671,3 +1671,38 @@ const LIVE_PLACEHOLDER =
 - ③Heo 补丁后全站不再自动 scan；若日后新页面用 `.jpg`/`.pvt` 实况，需确保该页的 `img[data-live-pvt]` 被 Layout 的 IO 脚本覆盖（当前 IO 选择器是 `img[data-live-pvt]`，[slug].astro 实况项满足）。
 - ④时长隔离只对 `[data-fancybox][data-pvt]` 项起作用，静态相册项（webp）长按仍会开灯箱（无播放冲突，无需隔离）。
 - ⑤演示页 `docs/live-photo-waterfall-v2/` 保留作独立设计稿；正式相册页以 `src/pages/galleries/[slug].astro` + `Layout.astro` 为准。
+
+## 2026-09-25 20:00 相册页三个连环问题（只排一列 / 打开慢 / 空白块）
+
+**背景**：2026-09-25 15:00 把实况标准落地正式相册页后，用户反馈三个问题：①相册只排了一列、没占满页面；②打开相册非常慢；③切页后相册显示空白。
+
+### 1. 只排一列 → `column-fill: auto` 的坑
+
+**根因**：给 `.gallery-waterfall` 设了 `column-fill: auto`。CSS column 布局里 `auto` 的语义是"按顺序填满一列再进下一列"，**当容器没有明确高度时，第一列可以无限高，Chrome 就把所有图片全堆进第一列**，表现为只有一列。演示页只有 3 张图，堆一列看着像移动端单列没察觉；正式页 12 张堆一列才暴露。
+
+**修复**：删掉 `column-fill: auto`，用默认 `column-fill: balance`（图片平衡分布到各列）。同步改了 `docs/live-photo-waterfall-v2/index.html` 的 `.lp-waterfall`。
+
+### 2. 打开非常慢 → IO 懒加载无并发控制
+
+**根因**：改成 IO 懒加载时 `rootMargin: '200px 0px'`，首屏 12 张实况项**同时**进入 200px 范围 → 同时触发 12 次 `HeoLivePhoto.scan(item)`，每个 scan 要 fetch 整份 `.pvt`（1–2.6MB/个，共 ~16.7MB）+ CPU 解压 ZIP → 带宽打满 + CPU 占满。更糟的是切到别的页面后这些下载还在后台跑，继续拖慢新页面。
+
+**修复**（`Layout.astro` 的 rescanLivePhotos IO 脚本）：
+
+- `MAX_CONCURRENT = 2` 并发池：进入视口只入队，出队时同时最多 2 个 `.pvt` 在下载/解压，其余排队，前一个 promise 结算（`.then(done, done)`）才拉下一个。
+- `rootMargin: '0px'`：只解包真正滚进视口的那张，不预取。
+- `generation` 递增 token：每次 `setup()` 递增，回调与出队里 `if (gen !== generation) return` —— **切页后旧队列立即作废，不再追加新下载**（这是"切到别的页面加载慢"的直接原因）。
+- 原代码里的 `initItem()` 无返回值，改成 `scanItem(item, done)` 带回调才能做并发控制。
+
+### 3. 空白块 → 实况缩略图透明 gif 无可见底色
+
+**根因**：实况缩略图 `src` 是 1x1 透明 gif（等 Heo 解包后换 blob 封面），`.gallery-item` 原本只有 `background: rgb(... / 0.05)` 的 5% 微底色 → 解包前就是一块**看起来全空**的矩形，被误判成"页面空白"。问题 2 让它更严重：12 个 `.pvt` 串行加载慢，空白块停留时间更长。
+
+**修复**（`[slug].astro`）：实况项 `<a>` 加 `gallery-live` class，给一个可见的深灰扫光（shimmer）：`linear-gradient` 90deg + `background-size: 400% 100%` + `@keyframes gallery-shimmer` 1.8s 无限循环，颜色用 `rgb(from var(--color-text-primary) r g b / 0.08~0.16)` 自适应明暗。解包后 img 换成不透明 blob 封面，把扫光完全盖住。`prefers-reduced-motion: reduce` 下关掉动画。
+
+**验证**：`astro check` 119 files 0/0/0；`astro build` 211 pages。dist 核验 person-life：`MAX_CONCURRENT` 3 处、`generation` 7 处、`rootMargin: '0px'` 1 处、旧 `200px 0px` 残留 0；`gallery-live` 2 处 + `gallery-shimmer` 1 处；`data-pvt` 12、透明占位 gif 12、`aspect-ratio` 残留 0。
+
+**注意**：
+
+- ① 并发上限 2 是折中值。改大（如 4）会更快但更卡；改小（1）最顺但滚到底要等。
+- ② 实况缩略图的首帧成本没法再降：Motion Photo 本质是"一份文件里 JPEG 封面 + MP4"，必须整份下载才能拆出封面。要再快只能预先拆成"封面 webp + 视频 mp4"两文件（封面 webp 走 `<img>` 天然 lazy，视频只在灯箱点开时下载）——那是另一套素材管线，本次未做。
+- ③ 若日后把实况素材换成**远端 CDN 直连**（非 .pvt），仍要走 `data-live-pvt`/`data-live-motion` 并保证 Layout 的 IO 选择器覆盖到；跨域 fetch 需要 CDN 响应 `Access-Control-Allow-Origin`，否则解包失败回退静态图。
