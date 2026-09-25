@@ -1751,3 +1751,83 @@ const LIVE_PLACEHOLDER =
 - ② 若 CDN 哪天改掉 `Access-Control-Allow-Origin: *` 或短缓存策略，实况会退化：跨域拦 → `unpackMotion` 抛错 → 灯箱回退 `data-cover`（motion 项没给 cover，只显示静态封面 + `console.warn`）；短缓存 → `<img>` 与 fetch 各下一遍，流量翻倍。
 - ③ `.pvt` 路径完整保留，其它相册日后仍可用同名 `.pvt` 走实况（本地零改动接入）。
 - ④ `images.json` 这个文件名在 `src/content` 下尤其危险（Astro 约定内容入口前缀），改名也没用 —— 关键是**别放 `src/content` 里**。
+
+### 2026-09-25 - person-life 切「封面+视频分离」模式 & 新增 Love-eyes 相册（Motion Photo 直连）
+
+**背景**：上一条记录把 person-life 迁到 CDN 直连 Motion Photo 后，首屏 4 张仍要下 4.88MB（JPEG 封面在文件头部、视频在尾部，`<img>` 渲染封面必须拿全整份）。本轮把 person-life 的 12 张拆成「小封面 jpg + 独立 mp4」上传七牛，走分离模式；同时新建 Love-eyes 相册（8 张，用户明确「不需要拆分」，走 Motion Photo 直连）。
+
+**素材侧（本仓库只读边界外）**：
+
+- 拆分用 `docs/live-photo-waterfall/convert.mjs`（纯字节切片，无损、零重编码、无 sharp/ffmpeg 依赖）。原图从 git 历史 `de7467d~1` 取回（`git show <sha>:src/content/galleries/person-life/<id>.jpg`），与 CDN 上那份同源，不需要原始 URL 清单
+- 产物命名 `<原始ID>-cover.jpg` / `<原始ID>-video.mp4`，ID 用原照片编号（`1000015643`…`1000015654`）而不是自编序号，即使七牛上传工具加随机前缀，**后缀仍能一一对应**
+- 12/12 全部是真 Motion Photo，24/24 校验通过（封面 `FFD8`、视频偏移 4 处 `ftyp`）
+- **CDN 侧 24/24 已验**：HTTP 200、`Content-Length` 与本地**逐字节相等**（说明七牛没转码没改名）、`Access-Control-Allow-Origin: *`、`Cache-Control: public, max-age=31536000`
+
+**首屏流量账**：
+
+|                               | 手机首屏 4 张 | 全量                                           |
+| ----------------------------- | ------------- | ---------------------------------------------- |
+| Motion Photo 单文件（上一条） | 4.88 MB       | 16.71 MB                                       |
+| 封面+视频分离（本轮）         | **1.06 MB**   | 封面 4.22 MB；视频 12.49 MB 只在点开灯箱时按需 |
+
+**修改文件**：
+
+- `src/pages/galleries/[slug].astro`
+- `src/layouts/Layout.astro`
+- `src/data/gallery-manifests/person-life.json`（motion → 分离模式）
+- `src/data/gallery-manifests/Love-eyes.json`（**新建**，8 张 motion）
+- `src/content/galleries/Love-eyes/index.md`（用户已建，frontmatter 原样保留）
+- `.gitignore`（加 `upload/`，待上传素材不进 git）
+
+**manifest 现在是判别联合**（`[slug].astro` 里 `RemoteManifest`）：
+
+```ts
+type RemoteManifest = {
+  images: Array<
+    | { alt: string; width: number; height: number; cover: string; video: string } // 分离模式
+    | { alt: string; width: number; height: number; src: string; live: 'motion' } // Motion Photo
+  >
+}
+```
+
+`"cover" in img` 分支映射，TS 自行收窄，无断言。
+
+**分离模式怎么接线**：
+
+- `<a>`：`data-cover` = 封面 URL、`data-video` = 视频 URL；**不给 `data-motion`**
+- `<img>`：`src` = 封面 URL、`data-live-video` = 视频 URL（HeoLivePhoto 原生支持，`img.src` 留作封面、视频挂到新建的 `<video>` 上）
+- `resolveAssets` 在 pvt 之前优先取 `assets.video`，直接返回 `{cover, video}`，**完全不走解包**（无需 ZIP/Motion 解析）
+- `data-html` 空骨架注入、时长隔离选择器、IO 懒加载选择器都扩到 `[data-fancybox][data-video]` / `img[data-live-video]`
+
+**排掉的一个雷**：Fancybox 会不会把 `data-video` 当成自己的视频类型选项抢先接管？不会。UMD bundle 里 `.video` 26 处全是 YouTube 的 `t.videoId` / `f-iframe_<videoId>`，**没有 `slide.video` 选项**；且实况项无 `href`、有 `data-html`，类型被锁定为 `html`，不会走 video type。
+
+**属性语义（三种形态速查）**：
+
+| 形态           | `<a>`                                              | `<img>`                           | 灯箱取料                |
+| -------------- | -------------------------------------------------- | --------------------------------- | ----------------------- |
+| 分离           | `data-cover` + `data-video`                        | `src=cover` + `data-live-video`   | 直接返回，不解包        |
+| Motion Photo   | `data-motion`                                      | `src=单文件` + `data-live-motion` | `unpackMotion` 整份解包 |
+| `.pvt`（本地） | `data-pvt` + `data-cover`（兜底）+ `data-video=""` | `src=透明 gif` + `data-live-pvt`  | `unpackPvt` ZIP 解包    |
+
+`data-video=""` 是空串，`assets.video` 判定为 falsy，才会落到 pvt 分支——别误删。
+
+**Love-eyes 素材实测（8 张，Motion Photo 直连）**：
+
+- 全部 `MicroVideoOffset` 存在；按 `fileSize - offset` 算出的 `videoStart` 处，**JPEG EOI（`ffd9`）在 -2、`ftyp` 在 +4**，8/8 精确吻合 —— 位置对得上，Heo 与灯箱解包器都能正确切分
+- 体积很小：单张 191–384 KB，8 张共 **2.23 MB**，首屏 4 张约 1.14 MB
+- 尺寸：720×540 ×5、720×480、720×960（竖）、1920×1080
+- `Access-Control-Allow-Origin: *` + `Cache-Control: public, max-age=31536000` 齐全
+
+**验证**：`astro check` 119 files 0/0/0；`astro build` 212 pages。dist 精确 DOM 核验：
+
+- `person-life`：`<a data-fancybox>` 12、`data-cover=CDN` **12**、`data-video=CDN` **12**、`data-motion` **0**、`data-pvt` **0**、`href` **0**、`<img src=CDN 封面>` 12、`data-live-video` 12、`data-live-motion` **0**、`data-live-pvt` **0**、`loading="lazy"` 12、`width+height` 13/13、本地 `_astro/*.jpg|*.pvt` 引用 **0**、唯一 CDN URL **24**（12 cover + 12 video）
+- `Love-eyes`：`<a data-fancybox>` 8、`data-motion=CDN` **8**、`href` **0**、`data-pvt/data-video/data-cover` **0**、`<img src=Motion 直链>` 8、`data-live-motion` 8、`loading="lazy"` 8、唯一素材 URL **8**、`alt="眼睛与偏爱 N"` 8 个全在
+- `junxun` 35 / `scenery-cartoon` 38 / `tree-photo` 16 / `cloud-photography` 16：`data-pvt`/`data-video`/`data-cover` 全 **0**，走本地 `_astro/*.webp`，静态相册零影响
+
+**注意**：
+
+- ① 核验 dist 时别直接用 `grep -o 'data-pvt' | wc -l` —— 页面内联的 Fancybox/实况脚本里也有这些选择器字符串（LIVE_SEL、`data-html` 注入器），会算进 JS 里。要精确得先抽 DOM 标签再数属性
+- ② **Motion Photo 的 `MicroVideoOffset` 是「从文件末尾往回数」，即视频体积**，`videoStart = fileSize - offset`。这批 Love-eyes 的照片封面很小（26–179 KB）、视频在文件前段，所以抽样取文件**尾部** 64KB 是找不到 `ftyp` 的（上次误报 `ftyp=False` 就是这个原因）—— 要验就按 `videoStart` 精确取那 64 字节
+- ③ `galleries/index.astro` 的相册卡片封面只看**本地**图片（`getGalleryImages` glob `/src/content/galleries/**/*.{jpg,...}`），CDN 相册没有本地文件 → 卡片显示占位 SVG 图标且无「N 张照片」计数。**person-life 与 Love-eyes 都是这个状态**（本轮引入但未修，属既有局限，等确认再改）
+- ④ `upload/` 目录里的 24 个拆分素材已删（上传完成后被清理）；`upload/` 仍留在 `.gitignore`，下次拆素材可继续用同一位置
+- ⑤ 分离模式的封面是**原始 JPEG 切片**，未转 webp（本机无 sharp/ffmpeg）；若要再压 30% 需另装依赖或改用 CDN 图片处理参数
