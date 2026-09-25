@@ -1706,3 +1706,48 @@ const LIVE_PLACEHOLDER =
 - ① 并发上限 2 是折中值。改大（如 4）会更快但更卡；改小（1）最顺但滚到底要等。
 - ② 实况缩略图的首帧成本没法再降：Motion Photo 本质是"一份文件里 JPEG 封面 + MP4"，必须整份下载才能拆出封面。要再快只能预先拆成"封面 webp + 视频 mp4"两文件（封面 webp 走 `<img>` 天然 lazy，视频只在灯箱点开时下载）——那是另一套素材管线，本次未做。
 - ③ 若日后把实况素材换成**远端 CDN 直连**（非 .pvt），仍要走 `data-live-pvt`/`data-live-motion` 并保证 Layout 的 IO 选择器覆盖到；跨域 fetch 需要 CDN 响应 `Access-Control-Allow-Origin`，否则解包失败回退静态图。
+
+## 2026-09-25 20:40 person-life 相册迁到 CDN 直连（删 34MB 本地素材，改 Motion Photo）
+
+**背景**：12 张实况照片原本是本仓库里的 `.jpg`（原 Motion Photo）+ `.pvt` 双份，共 **34MB** 打进 git 和构建产物。素材已在七牛 CDN（`cdn.mingcy.cn`），所以删本地、改直连。
+
+**CDN 侧实测**（`Range: bytes=0-499999` 只取头部逐个验）：
+
+- 12/12 都是真 Motion Photo，EXIF 均含 `GCamera:MicroVideoOffset`，尾部挂着 188KB–2049KB 的 MP4
+- `Access-Control-Allow-Origin: *` → 跨域 `fetch` 能解包（**这是硬条件**，没有就解包失败回退静态图）
+- `Cache-Control: public, max-age=31536000` → `<img>` 与 `fetch()` **共用同一份缓存，不会下两遍**（硬条件 2）
+- `Accept-Ranges: bytes` 支持断点
+- 流量账：12 张共 **16.71MB**（封面 4.22MB + 视频 12.49MB），与 `.pvt` 方案**完全等价**（`.pvt` 也是同样大小）。迁移收益不在流量，在仓库瘦身 + 带宽卸到七牛
+
+**清单位置坑**：清单最初放在 `src/content/galleries/person-life/images.json`，直接报 `MixedContentDataCollectionError: "galleries" contains a mix of content and data entries` —— **`src/content` 下任何 `.json` 都会被内容集合当成 data entry**，与 `.md` 内容混用即报错。改放 `src/data/gallery-manifests/<slug>.json`（与 `links.ts`、`ai-summaries.json` 同级，该目录不被集合扫描）。
+
+**修改文件**：
+
+1. **新建** `src/data/gallery-manifests/person-life.json`：12 条 `{src, alt, width, height, live:"motion"}`，尺寸是实测 CDN 文件 SOF0 拿到的真实值（9 张 2558×1098、2 张 1920×824、2 张竖图 1648×3840 / 1200×2608）
+2. **改** `src/pages/galleries/[slug].astro`：
+   - `import.meta.glob('/src/data/gallery-manifests/*.json')`，按 slug 取；有清单则**整页只用清单**，不再走 glob 本地文件
+   - `<a>` 加 `data-motion`（灯箱素材源）、`data-cover`/`data-video` 只在 `.pvt` 项给
+   - `<img>` 加 `data-live-motion`；**motion 项的 img src 就是 CDN 直链**（浏览器原生渲染 Motion Photo 的 JPEG 封面），不再用透明占位
+   - `loading`：远端项一律 `lazy`（单张 1MB+，不能 eager），本地项维持「前 6 张 eager」；全部加 `decoding="async"`
+   - glob 的 JSON 模块结果是 `{ default: {...} }`，代码用 `"default" in manifestMod` 两分支兼容
+3. **改** `src/layouts/Layout.astro`：
+   - 新增 `unpackMotion(url)`：fetch 整份 → 读 `MicroVideoOffset`（语义是「从文件末尾往回数的字节数」= 视频体积）→ 按 `ftyp` 魔数校准 `videoStart` → 反向找 JPEG EOI → 切出封面/视频两个 blob。算法与 HeoLivePhoto 内部 `extractMotionFromBuffer` 一致，但**灯箱不复用缩略图的 blob**（保持 DOM 解耦），所以自己解一遍；`motionCache` 按 url 去重、失败即删缓存
+   - `getAssets` 加 `motion`；`resolveAssets` 在 pvt 之后加 motion 分支
+   - `mountLivePlayer`：`if (!assets.pvt && !assets.motion && assets.cover) setCover(...)` —— motion 项不预铺 cover（解包器自己出封面，同一份字节已缓存）
+   - 选择器扩容：时长隔离 `LIVE_SEL` 与 `data-html` 空骨架注入都从 `[data-fancybox][data-pvt]` 扩到 `[data-fancybox][data-pvt], [data-fancybox][data-motion]`
+   - IO 懒加载选择器扩到 `img[data-live-pvt], img[data-live-motion]`
+4. **删除** `src/content/galleries/person-life/` 下 12 个 `.jpg` + 12 个 `.pvt`（34MB，git 可恢复）；`index.md` 保留
+
+**验证**：`astro check` 119 files 0/0/0；`astro build` 211 pages（120s，比带本地素材时快一倍）。dist 精确属性核验：
+
+- person-life：`<a data-fancybox>` 12、`data-motion` 12、`data-pvt` **0**、SSR `data-html` **0**（由 JS 注入）、透明占位 gif **0**、`loading="lazy"` 12、`decoding="async"` 12、`width/height` 13/13、`alt="实况照片 N"` 12、本地 `_astro/*.jpg|*.pvt` 引用 **0**、12 个 URL 全唯一
+- junxun / tree-photo：`data-motion` **0**、`data-pvt` **0**，静态相册完全不受影响
+
+**端到端实测**（把 `Layout.astro` 里**真实的** `unpackMotion` 源码抽出 `eval`，喂**真实 CDN 下载件**，Node 22 + stub fetch/Blob）：2/2 通过 —— 封面 JPEG 头 `FFD8` ✓、视频 `ftyp` 魔数 ✓、封面+视频字节数之和等于原始文件字节数（**一份字节两用，无重复下载**）；同 url 二次调用命中缓存返回同一 promise ✓；错误路径正确抛错 ✓。
+
+**注意**：
+
+- ① **Motion Photo 直连省不掉缩略图阶段的整份下载**：JPEG 封面在文件头部、视频在尾部，`<img>` 渲染封面就必须拿全整份。真要砍首屏流量，得把每张拆成「小封面 webp + 视频 mp4」两个文件传 CDN（封面走 `<img>` 天然 lazy，视频只在点开灯箱时下载），首屏从 16.71MB 降到 4.22MB —— 那是另一套素材管线，本次未做。
+- ② 若 CDN 哪天改掉 `Access-Control-Allow-Origin: *` 或短缓存策略，实况会退化：跨域拦 → `unpackMotion` 抛错 → 灯箱回退 `data-cover`（motion 项没给 cover，只显示静态封面 + `console.warn`）；短缓存 → `<img>` 与 fetch 各下一遍，流量翻倍。
+- ③ `.pvt` 路径完整保留，其它相册日后仍可用同名 `.pvt` 走实况（本地零改动接入）。
+- ④ `images.json` 这个文件名在 `src/content` 下尤其危险（Astro 约定内容入口前缀），改名也没用 —— 关键是**别放 `src/content` 里**。

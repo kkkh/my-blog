@@ -44,7 +44,47 @@ type GalleryImage = {
   height?: number
   live?: boolean
   pvt?: string
+  /** Google Motion Photo 直链：img src 本身就是封面+视频，Heo 抓整份拆视频 */
+  motion?: string
+  /** 素材在远端 CDN（体积 1MB+，必须 lazy，不能 eager） */
+  remote?: boolean
 }
+
+// 远端素材清单：src/data/gallery-manifests/<slug>.json（素材放 CDN，仓库不背体积）。
+// 不能放 src/content/galleries/<slug>/ 下：任何 .json 都会被内容集合当成 data
+// entry，与 .md 内容混在一起抛 MixedContentDataCollectionError。
+// live:"motion" = Google Motion Photo（JPEG 封面 + 文件尾部内嵌 MP4）：
+//   浏览器 <img> 原生渲染封面，HeoLivePhoto 抓整份按 MicroVideoOffset 拆出视频。
+// CDN 侧两个条件缺一不可：Access-Control-Allow-Origin: *（跨域 fetch 解包）、
+//   Cache-Control: max-age 长缓存（<img> 与 fetch 共用同一份缓存，不会下两遍）。
+// cdn.mingcy.cn 实测两项都满足。
+type RemoteManifest = {
+  images: Array<{
+    src: string
+    alt: string
+    width: number
+    height: number
+    live: "motion"
+  }>
+}
+const manifests = import.meta.glob("/src/data/gallery-manifests/*.json", {
+  eager: true,
+}) as Record<string, RemoteManifest | { default: RemoteManifest }>
+const manifestMod = manifests[`/src/data/gallery-manifests/${slug}.json`]
+const remoteImages: GalleryImage[] = (() => {
+  if (!manifestMod) return []
+  // JSON 模块经 glob 得到的是 { default: {...} }，这里两个分支都兼容
+  const m = "default" in manifestMod ? manifestMod.default : manifestMod
+  return m.images.map((img) => ({
+    src: img.src,
+    alt: img.alt || title,
+    width: img.width,
+    height: img.height,
+    live: true,
+    motion: img.src,
+    remote: true,
+  }))
+})()
 
 const localImages: GalleryImage[] = Object.entries(allImages)
   .filter(
@@ -75,7 +115,9 @@ const bodyImages: GalleryImage[] = Array.from(entry.body?.matchAll(/<img\b[^>]*>
   })
   .filter((image): image is { src: string; alt: string } => Boolean(image))
 
-const images: GalleryImage[] = localImages.concat(bodyImages)
+const images: GalleryImage[] = remoteImages.length
+  ? remoteImages
+  : localImages.concat(bodyImages)
 ---
 
 <PageLayout>
@@ -99,18 +141,21 @@ const images: GalleryImage[] = localImages.concat(bodyImages)
             data-no-swup
             data-caption={img.alt}
             data-pvt={img.live ? img.pvt : undefined}
-            data-cover={img.live ? img.src : undefined}
-            data-video={img.live ? "" : undefined}
+            data-motion={img.live ? img.motion : undefined}
+            data-cover={img.live && img.pvt ? img.src : undefined}
+            data-video={img.live && img.pvt ? "" : undefined}
             aria-label=`View image: ${img.alt}`
           >
             <img
-              src={img.live ? LIVE_PLACEHOLDER : img.src}
+              src={img.live && img.pvt ? LIVE_PLACEHOLDER : img.src}
               alt={img.alt}
               width={img.width}
               height={img.height}
               class="gallery-img"
               data-live-pvt={img.live ? img.pvt : undefined}
-              loading={idx < 6 ? "eager" : "lazy"}
+              data-live-motion={img.live && img.motion ? img.motion : undefined}
+              loading={img.remote ? "lazy" : idx < 6 ? "eager" : "lazy"}
+              decoding="async"
             />
             <div class="gallery-overlay">
               <span class="gallery-alt">{img.alt}</span>
