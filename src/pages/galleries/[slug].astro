@@ -20,10 +20,9 @@ const allImages = import.meta.glob<{ default: ImageMetadata }>(
   { eager: true }
 )
 
-// 实况照片资产：同名 .pvt 存在时，缩略图改用 .pvt。
+// 实况照片资产：同名 .pvt 存在时，该项走实况灯箱（点击放大播放视频）。
 // 原 Motion Photo jpg 会让浏览器下载两遍整份文件（<img> 一遍 +
 // Heo 抽内嵌视频时 fetch 再一遍）；.pvt 一次下载同时拿到封面和视频。
-// 原图仍保留在网格数据里，只用作灯箱预览（点击放大），不进缩略图。
 const allPvt = import.meta.glob<string>("/src/content/galleries/**/*.pvt", {
   query: "?url",
   import: "default",
@@ -31,16 +30,18 @@ const allPvt = import.meta.glob<string>("/src/content/galleries/**/*.pvt", {
 })
 
 // 实况缩略图的加载占位：1x1 透明 gif。
-// 不能直接把 .pvt 当 img src —— 浏览器会尝试把 ZIP 渲染成图片而出一帧破图；
-// 也不能用 opacity:0 —— HeoLivePhoto 只在 DOMContentLoaded 扫一次，
-// 若扫描尚未执行（或解包失败）就会永远停在不可见。透明占位让 .gallery-item
-// 自己的浅灰渐变当加载态，Heo 解包完才把 img.src 换成 blob 封面。
+// 不直接把 .pvt 当 img src（浏览器会把 ZIP 当图片出一帧破图），
+// 也不用原图 jpg 做 src（会与 .pvt 双下载）。img 用 width/height 属性预留
+// intrinsic 尺寸（来自 ImageMetadata），瀑布流布局稳定不跳动、原生比例无裁切。
+// Heo 解包 .pvt 后把 img.src 换成 blob 封面（同尺寸）。
 const LIVE_PLACEHOLDER =
   "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
 
 type GalleryImage = {
   src: string
   alt: string
+  width?: number
+  height?: number
   live?: boolean
   pvt?: string
 }
@@ -58,6 +59,8 @@ const localImages: GalleryImage[] = Object.entries(allImages)
     return {
       src: mod.default.src,
       alt: base.replace(/[-_]/g, " ") || title,
+      width: mod.default.width,
+      height: mod.default.height,
       live: Boolean(pvt),
       pvt,
     }
@@ -87,22 +90,24 @@ const images: GalleryImage[] = localImages.concat(bodyImages)
     </div>
 
     {images.length > 0 ? (
-      <div class="gallery-grid" id="gallery-grid">
+      <div class="gallery-waterfall" id="gallery-waterfall">
         {images.map((img, idx) => (
           <a
-            href={img.src}
+            href={img.live ? undefined : img.src}
             class="gallery-item group"
             data-fancybox="gallery"
             data-no-swup
             data-caption={img.alt}
+            data-pvt={img.live ? img.pvt : undefined}
+            data-cover={img.live ? img.src : undefined}
+            data-video={img.live ? "" : undefined}
             aria-label=`View image: ${img.alt}`
           >
-            <!-- 实况缩略图：src 是透明占位，HeoLivePhoto 解完 .pvt 后才会
-                 把 img.src 换成解包出的 blob 封面（loadPvt → img.src = m.cover）。
-                 href 仍指原 Motion Photo jpg：灯箱走静态预览，不会跳到 zip 直链。 -->
             <img
               src={img.live ? LIVE_PLACEHOLDER : img.src}
               alt={img.alt}
+              width={img.width}
+              height={img.height}
               class="gallery-img"
               data-live-pvt={img.live ? img.pvt : undefined}
               loading={idx < 6 ? "eager" : "lazy"}
@@ -120,29 +125,159 @@ const images: GalleryImage[] = localImages.concat(bodyImages)
 </PageLayout>
 
 <style>
-  .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; list-style: none; padding: 0; margin: 0; }
-  @media (min-width: 640px) { .gallery-grid { grid-template-columns: repeat(3, 1fr); gap: 1rem; } }
-  @media (min-width: 1024px) { .gallery-grid { grid-template-columns: repeat(4, 1fr); } }
-  .gallery-item { position: relative; display: block; width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 0.75rem; cursor: zoom-in; background: rgb(from var(--color-text-primary) r g b / 0.05); border: 1px solid rgb(from var(--color-border) r g b / 0.25); transition: border-color 0.2s, box-shadow 0.2s; padding: 0; }
-  .gallery-item:hover { border-color: rgb(from var(--color-accent) r g b / 0.4); box-shadow: 0 4px 24px rgb(from var(--color-accent) r g b / 0.12); }
-  .gallery-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; display: block; }
-  .gallery-item:hover .gallery-img { transform: scale(1.05); }
-  .gallery-overlay { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 0.75rem; background: linear-gradient(to top, rgb(0 0 0 / 0.6) 0%, transparent 60%); opacity: 0; transition: opacity 0.3s; }
+  /* -------- 瀑布流容器：CSS column 布局，列数响应式 --------
+     桌面 3 列 / 平板 2 列 / 手机 1 列；列间距 16px。
+     不能用 column-fill:auto（容器无明确高度时 Chrome 会把所有图堆进第一列，
+     表现为只有一列）；用默认 balance 让图片平衡分布到各列，才是瀑布流多列。 */
+  .gallery-waterfall {
+    column-count: 3;
+    column-gap: 1rem;
+    padding: 0;
+    margin: 0;
+  }
+  @media (max-width: 768px) { .gallery-waterfall { column-count: 2; } }
+  @media (max-width: 480px) { .gallery-waterfall { column-count: 1; } }
+
+  /* -------- 单个相册项 --------
+     必须块级 + break-inside:avoid，否则 CSS column 会把图片拦腰截断到下一列。
+     不设 aspect-ratio、不设固定高 → 高度由图片 intrinsic 尺寸决定，无裁切。 */
+  .gallery-item {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin: 0 0 1rem;
+    padding: 0;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    cursor: zoom-in;
+    background: rgb(from var(--color-text-primary) r g b / 0.05);
+    border: 1px solid rgb(from var(--color-border) r g b / 0.25);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .gallery-item:hover {
+    border-color: rgb(from var(--color-accent) r g b / 0.4);
+    box-shadow: 0 4px 24px rgb(from var(--color-accent) r g b / 0.12);
+  }
+  /* 图片：严格按原始比例渲染，无裁切、无拉伸。
+     width/height 属性预留尺寸防布局跳动；height:auto 让高度按比例。 */
+  .gallery-img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    transition: transform 0.4s ease, opacity 0.3s ease;
+  }
+  .gallery-item:hover .gallery-img { transform: scale(1.03); }
+  .gallery-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    padding: 0.75rem;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.6) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
   .gallery-item:hover .gallery-overlay { opacity: 1; }
   .gallery-alt { font-size: 0.75rem; color: white; text-shadow: 0 1px 3px rgb(0 0 0 / 0.5); }
 </style>
 
-<!-- 实况图（HeoLivePhoto，/livephoto/heolivephoto.js）兼容层。
-     插件运行时会把实况图 img 包进一个匿名 <span>，并给 img 写入 inline 的
-     width:100% / height:auto / object-fit:contain。inline 样式压过上面的 .gallery-img，
-     会让 1:1 方格里的宽图只占上半截、下方留灰。
-     这里必须用 is:global：上方 <style> 是默认作用域，选择器会被 Astro 追加
-     [data-astro-cid-xxx]，而插件运行时创建的 <span> 没有这个属性，规则永不生效。
-     !important 用于压过插件写入的 inline 样式；这两个 class 只在本页模板内使用，无泄漏风险。 -->
+<!-- 实况图（HeoLivePhoto）兼容层 + 实况灯箱样式。
+     is:global：上方 <style> 默认作用域会被 Astro 追加 [data-astro-cid-xxx]，
+     而插件运行时创建的 <span> 与 Fancybox 创建的灯箱 DOM 都没有这个属性，
+     规则永不生效。!important 用于压过插件/Fancybox 写入的 inline 样式。 -->
 <style is:global>
-  .gallery-item > span { display: block !important; width: 100% !important; height: 100% !important; }
-  .gallery-item .gallery-img { width: 100% !important; height: 100% !important; object-fit: cover !important; transition: transform 0.4s ease, opacity 0.3s ease !important; }
-  /* 插件把 img 写成 position:relative + z-index:1（正值），会盖住
-     无 z-index 的悬浮图注层；提上来保持与其他相册页一致 */
+  /* HeoLivePhoto 把实况图 img 包进匿名 <span>（无 class）并写 inline 样式。
+     强制成块级、满宽、高度自适应，避免 1:1 方格时代留下的裁切。 */
+  .gallery-item > span {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    line-height: 0;
+  }
+  .gallery-item .gallery-img {
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    object-fit: contain !important;
+    transition: transform 0.4s ease, opacity 0.3s ease !important;
+  }
+  /* 插件把 img 写成 position:relative + z-index:1，提上图注层保持可点击 */
   .gallery-item .gallery-overlay { z-index: 3; }
+
+  /* -------- Fancybox 灯箱内的实况播放器（由 Layout.astro 的 initFancybox 在
+            contentReady 阶段从 data-* 动态注入，与缩略图 DOM 完全解耦）-------- */
+  .lp-player {
+    position: relative;
+    display: block;
+    margin: 0 auto;
+    line-height: 0;
+    background: #000;
+    min-width: 220px;
+    min-height: 140px;
+  }
+  .lp-cover {
+    display: block;
+    max-width: min(92vw, 1280px);
+    max-height: min(86vh, 980px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin: 0;
+    border: 0;
+    /* 放大后动效：视频解码前对封面做缓慢 Ken Burns，避免「放大后是一张死图」 */
+    animation: lp-kenburns 8s ease-out forwards;
+    transform-origin: center center;
+  }
+  @keyframes lp-kenburns {
+    0% { transform: scale(1.02); }
+    100% { transform: scale(1.12); }
+  }
+  .lp-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    margin: 0;
+    border: 0;
+    background: #000;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+  }
+  .lp-video.is-waiting { opacity: 0; }
+  .lp-spin {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 34px; height: 34px;
+    margin: -17px 0 0 -17px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.28);
+    border-top-color: #fff;
+    animation: lp-spin 0.8s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes lp-spin { to { transform: rotate(360deg); } }
+  .lp-caption {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    margin: 0;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #fff;
+    background: linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0));
+    pointer-events: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lp-cover { animation: none; }
+    .lp-video { transition: none; }
+    .lp-spin { animation-duration: 1.6s; }
+  }
 </style>

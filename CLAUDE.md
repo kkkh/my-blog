@@ -1636,3 +1636,38 @@ const LIVE_PLACEHOLDER =
 **⚠️ 事故记录（务必看）：** 排查中发现 **12 张原始 jpg 从工作区凭空消失**（`git status` 显示 ` D` 12 个 tracked 文件被删，`.pvt` 幸存）。用 `git checkout -- src/content/galleries/person-life/` 全量恢复，事后逐个字节校验：12/12 仍是合法 Motion Photo（JPEG 头 + 全文件扫描到 `ftyp`）且与最初下载件字节一致。**根因未查明**，排查过的方向都排除了：`docs/live-photo-waterfall/convert.mjs` 无 `unlink/rmSync` 逻辑；`.git/hooks/pre-commit` 是 `lint-staged`（我这次会话没 commit）；Astro 的图片处理不会删源文件。`.download-tmp/` 里留着一份原始下载件（21 MB）已一并删除——jpg 在 git 里就是备份。若再发生同类丢失，直接从 git 恢复，不要试图用 `.pvt` 里的封面倒推（那是重压缩过的，不是原文件）。
 
 **教训（写进以后的实现准则）：** ①**接任何第三方客户端脚本，第一件事就是确认它自己的 DOMContentLoaded/resize/路由钩子有哪些，站点是 Swup SPA，缺的钩子必须自己在 body 级补上**——HeoLivePhoto 就是漏了这一环；②**加载遮罩不要用 `opacity:0` 依赖"第三方稍后会改回来"这种假设**，第三方不跑就等于永久隐形，要用透明占位这类"看起来是加载中"的中性形态；③改文件前先 `git status`，别信 `ls | grep -v` 这种过滤后的输出就断言"文件还在"。
+
+### 2026-09-25 - 正式相册页落地演示标准：Heo 补丁 + Layout 实况灯箱 + 瀑布流原生比例
+
+**背景：** 用户在 `docs/live-photo-waterfall-v2/` 演示页验证满意后，要求把同一套标准（DOM 解耦实况灯箱 / 事件隔离 / 原生比例无裁切 / IO 懒加载）落到正式相册页 `src/content/galleries`。正式相册页跑在 Astro + Swup 里，Fancybox 与 HeoLivePhoto 都由 `Layout.astro` body 级常驻脚本统一管理（`[slug].astro` 内联脚本在 Swup 切页后不重跑，放页面里不可靠），故必须改 Layout 与共享 Heo 文件。
+
+**关键 API 复核（本地 Fancybox 6.0.29 bundle 逐字验证）：**
+
+- **`done` 事件不存在**于本 bundle（`'done'` 字串 MISS）；`Carousel.contentReady`（`F('contentReady', i)`）是 slide 内容就绪的准确钩子，**仅当 slide 有 `html` 选项时触发**（Html 插件条件 `i.html ? ... : void 0`）→ 实况项给 `data-html` 空骨架才触发，静态项无 `data-html` 走默认 image 灯箱，**分流天然成立**。
+- 元素**所有 `data-*` 映射成 slide 选项**（option 组装 `for(var u in t){ a[u]=e }`）→ `data-pvt`/`data-cover`/`data-video`/`data-caption`/`data-html` 全进 slide 对象，`slide.triggerEl` 是触发 `<a>`。
+- `backdropClick` 是 `on:` 事件（`w('backdropClick', e)` 先调 on-handler，再 `!e.defaultPrevented && b('backdropClick')` 查选项）→ handler 里 `event.preventDefault()` 阻止点内容关闭，默认 `'close'` 仍关遮罩。
+- Carousel `c.on('*', (e,t,...n)=>w('Carousel.'+t,...))` 把 Carousel 事件重发为 `Carousel.<name>`。
+- 类型猜测有 `if(he(o))` 守护，`<a>` 无 href/src 不崩。
+
+**修改文件：**
+
+- `public/livephoto/heolivephoto.js`（打补丁）
+- `src/layouts/Layout.astro`（initFancybox 重构为 IIFE + rescanLivePhotos 改 IO 懒加载）
+- `src/pages/galleries/[slug].astro`（网格→瀑布流 + 标记重构）
+
+**修改内容：**
+
+- **`public/livephoto/heolivephoto.js` 补丁**：删 IIFE 末尾 `if(document.readyState==='loading')...else scan()` 自动扫描调用，保留 `window.HeoLivePhoto={scan,bindPlayback,reset}` 导出。**必须打**：原版自动 scan 会在首屏一次性拉全部 `.pvt` + 对所有 `img[src$=".jpg"]` 做 Motion Photo 探测（整份 fetch），IO 懒加载被击穿。全站只有 `person-life` 用 Heo（文章页图是 webp），打补丁后行为等价、改由 Layout 的 IO 按需 `scan(item)`。
+- **`Layout.astro` initFancybox 重写为 IIFE**：内含 `unpackPvt`（零依赖 ZIP 解析，与 Heo 内部算法一致）、实况播放器生命周期（`activePlayers`/`prunePlayers`/`stopAll`/`mountLivePlayer`）、`getAssets(slide)`（从 `slide.triggerEl.dataset` 读 cover/video/pvt，**绝不读缩略图 DOM**）、时长隔离（`[data-fancybox][data-pvt]` 项 touchstart 记时，≥300ms 且未移动→屏蔽随后 click）。bind 选项加 `on:{'Carousel.contentReady':activateSlide, 'Carousel.attachSlideEl':activateSlide, 'Carousel.change':prune, 'Carousel.settle':prune, backdropClick(点 `.lp-player` 内 preventDefault), close:stopAll, destroy:stopAll}`。unbind 后给 `[data-fancybox][data-pvt]:not([data-html])` 注入 `data-html='<div class="lp-player"></div>'` 空骨架（JS 设避免 SSR 属性转义）。`mountLivePlayer`：有 `data-pvt` 时不预铺 cover（避免下载原图 jpg），让 `unpackPvt` 出封面（.pvt 已被缩略图缓存）；pvt 解包失败才回退 `data-cover`。
+- **`Layout.astro` rescanLivePhotos 改 IO 懒加载**：切页后对页内 `img[data-live-pvt]` 逐个 `IntersectionObserver`（`rootMargin:'200px 0px'`）observe，进入视口才 `scan(item)`（root=item 子树只增强那一张）+ `unobserve` 一次性；切页 `disconnect()` 旧 observer 重建。不支持 IO 的浏览器回退全量。
+- **`[slug].astro` 重构**：`gallery-grid`(2/3/4 列 grid + `aspect-ratio:1/1` + `object-fit:cover` **裁切**) → `gallery-waterfall`(CSS `column-count` 3/2/1，断点 768/480，gap 16px，`break-inside:avoid`)；img 去 `aspect-ratio`/固定高，`width:100% height:auto object-fit:contain` → **原生比例无裁切**。`GalleryImage` 加 `width/height`（取自 `ImageMetadata`），实况项 img `src=透明占位 gif` + `width/height` 属性预留 intrinsic 尺寸防布局跳动（不下载原图 jpg 避免与 .pvt 双下载）。实况项 `<a>` **去 href**（否则 Fancybox 当 image 拉 jpg），加 `data-pvt`/`data-cover`(原图 jpg，pvt 解包失败才回退)`/`data-video=""`/`data-caption`；`data-html`骨架由 Layout 注入。静态项（webp）保持`href=src`+`data-fancybox="gallery"` 走 image 默认灯箱。`<style is:global>` 加 Heo wrap 兼容（`.gallery-item>span`+`.gallery-img`带`!important`，去 1:1 方格）+ 灯箱 `.lp-player`/`.lp-cover`(Ken Burns 8s)/`.lp-video`/`.lp-spin`/`.lp-caption`+`prefers-reduced-motion` 降级。
+
+**验证：** `pnpm exec astro check` 119 files / **0 errors / 0 warnings / 0 hints**（清理了 3 个自引 hint：`pending`/`fancybox` 未用参数 + unpackPvt `.then` 转 `async/await`）；`pnpm exec astro build` 211 pages Complete。dist 核验：`person-life` 12 个实况项各带 `data-pvt`/`data-cover`/`data-live-pvt`/`data-fancybox="gallery"` + 透明占位 gif + width/height 属性，`href` 在实况项 0 处、`aspect-ratio` 残留 0；`junxun` 35 个静态项带 `href` 走 image 灯箱、`data-pvt` 0；首页含 `Carousel.contentReady`×3/`attachSlideEl`/`backdropClick`/`unpackPvt`×3/`IntersectionObserver`×3/`rootMargin`/`HeoLivePhoto.scan(item)`；`dist/livephoto/heolivephoto.js` `DOMContentLoaded` 0 处、导出在。
+
+**注意：**
+
+- ①**实况灯箱 contentReady 注入与 image 默认灯箱共用一个 `Fancybox.bind('[data-fancybox]')`**：实况项（带 `data-pvt`+`data-html` 骨架）触发 contentReady 注入视频；静态项（无 `data-html`）走默认 image，互不干扰。`backdropClick` handler 对所有 group 生效——文章页 image 灯箱也变成"点内容不关"（防误触，行为微调）。
+- ②`data-cover` 在实况项是 **pvt 解包失败的兜底**，正常路径不下载原图 jpg（避免与 .pvt 双下载）；缩略图用透明占位 + width/height 属性，Heo 解 .pvt 后换 blob 封面。
+- ③Heo 补丁后全站不再自动 scan；若日后新页面用 `.jpg`/`.pvt` 实况，需确保该页的 `img[data-live-pvt]` 被 Layout 的 IO 脚本覆盖（当前 IO 选择器是 `img[data-live-pvt]`，[slug].astro 实况项满足）。
+- ④时长隔离只对 `[data-fancybox][data-pvt]` 项起作用，静态相册项（webp）长按仍会开灯箱（无播放冲突，无需隔离）。
+- ⑤演示页 `docs/live-photo-waterfall-v2/` 保留作独立设计稿；正式相册页以 `src/pages/galleries/[slug].astro` + `Layout.astro` 为准。
