@@ -46,6 +46,10 @@ type GalleryImage = {
   pvt?: string
   /** Google Motion Photo 直链：img src 本身就是封面+视频，Heo 抓整份拆视频 */
   motion?: string
+  /** 分离模式：小封面（缩略图 + 灯箱预览） */
+  cover?: string
+  /** 分离模式：视频（只在长按/点开灯箱时下载） */
+  video?: string
   /** 素材在远端 CDN（体积 1MB+，必须 lazy，不能 eager） */
   remote?: boolean
 }
@@ -53,19 +57,18 @@ type GalleryImage = {
 // 远端素材清单：src/data/gallery-manifests/<slug>.json（素材放 CDN，仓库不背体积）。
 // 不能放 src/content/galleries/<slug>/ 下：任何 .json 都会被内容集合当成 data
 // entry，与 .md 内容混在一起抛 MixedContentDataCollectionError。
-// live:"motion" = Google Motion Photo（JPEG 封面 + 文件尾部内嵌 MP4）：
-//   浏览器 <img> 原生渲染封面，HeoLivePhoto 抓整份按 MicroVideoOffset 拆出视频。
-// CDN 侧两个条件缺一不可：Access-Control-Allow-Origin: *（跨域 fetch 解包）、
-//   Cache-Control: max-age 长缓存（<img> 与 fetch 共用同一份缓存，不会下两遍）。
-// cdn.mingcy.cn 实测两项都满足。
+// 两种形态：
+// - { cover, video }：封面/视频分离部署（推荐）。缩略图只下小封面（~200KB），
+//   视频只在长按/点开灯箱时下载。首屏流量最小。
+// - { src, live:"motion" }：Motion Photo 单文件。浏览器给 <img> 发请求不带
+//   Range，要画封面就必须整份下载（1-2.6MB），手机上明显更慢。
+// 分离模式靠 <img src=cover data-live-video=video>（Heo 原生支持），
+// 灯箱靠 data-cover + data-video（resolveAssets 直接返回，不用解包）。
 type RemoteManifest = {
-  images: Array<{
-    src: string
-    alt: string
-    width: number
-    height: number
-    live: "motion"
-  }>
+  images: Array<
+    | { alt: string; width: number; height: number; cover: string; video: string }
+    | { alt: string; width: number; height: number; src: string; live: "motion" }
+  >
 }
 const manifests = import.meta.glob("/src/data/gallery-manifests/*.json", {
   eager: true,
@@ -75,15 +78,28 @@ const remoteImages: GalleryImage[] = (() => {
   if (!manifestMod) return []
   // JSON 模块经 glob 得到的是 { default: {...} }，这里两个分支都兼容
   const m = "default" in manifestMod ? manifestMod.default : manifestMod
-  return m.images.map((img) => ({
-    src: img.src,
-    alt: img.alt || title,
-    width: img.width,
-    height: img.height,
-    live: true,
-    motion: img.src,
-    remote: true,
-  }))
+  return m.images.map((img) =>
+    "cover" in img
+      ? {
+          src: img.cover,
+          alt: img.alt || title,
+          width: img.width,
+          height: img.height,
+          live: true,
+          cover: img.cover,
+          video: img.video,
+          remote: true,
+        }
+      : {
+          src: img.src,
+          alt: img.alt || title,
+          width: img.width,
+          height: img.height,
+          live: true,
+          motion: img.src,
+          remote: true,
+        }
+  )
 })()
 
 const localImages: GalleryImage[] = Object.entries(allImages)
@@ -134,6 +150,8 @@ const images: GalleryImage[] = remoteImages.length
     {images.length > 0 ? (
       <div class="gallery-waterfall" id="gallery-waterfall">
         {images.map((img, idx) => (
+          // data-cover/data-video：pvt 项给 src 当解包失败兜底 + 空 video；
+          // 分离模式给真 cover/video；motion 项都不给（灯箱自己解包出封面）。
           <a
             href={img.live ? undefined : img.src}
             class={`gallery-item group${img.live ? ' gallery-live' : ''}`}
@@ -142,8 +160,8 @@ const images: GalleryImage[] = remoteImages.length
             data-caption={img.alt}
             data-pvt={img.live ? img.pvt : undefined}
             data-motion={img.live ? img.motion : undefined}
-            data-cover={img.live && img.pvt ? img.src : undefined}
-            data-video={img.live && img.pvt ? "" : undefined}
+            data-cover={img.live ? img.pvt ? img.src : img.cover : undefined}
+            data-video={img.live ? img.pvt ? "" : img.video : undefined}
             aria-label=`View image: ${img.alt}`
           >
             <img
@@ -154,6 +172,7 @@ const images: GalleryImage[] = remoteImages.length
               class="gallery-img"
               data-live-pvt={img.live ? img.pvt : undefined}
               data-live-motion={img.live && img.motion ? img.motion : undefined}
+              data-live-video={img.live && img.video ? img.video : undefined}
               loading={img.remote ? "lazy" : idx < 6 ? "eager" : "lazy"}
               decoding="async"
             />

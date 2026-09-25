@@ -26,3 +26,6 @@ pnpm-debug.log*
 # reasonix local tool state
 .reasonix/
 reasonix.toml
+
+# 待上传的素材（体积大，不进 git）
+upload/

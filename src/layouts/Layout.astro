@@ -854,7 +854,9 @@ const { title, description, image } = Astro.props
         }
 
         // ---- 时长隔离（移动端长按 vs 短点击，只对实况项起作用）----
-        var LIVE_SEL = '[data-fancybox][data-pvt], [data-fancybox][data-motion]'
+        // 三种实况形态：pvt（本地包）、motion（远端单文件）、video（封面/视频分离）
+        var LIVE_SEL =
+          '[data-fancybox][data-pvt], [data-fancybox][data-motion], [data-fancybox][data-video]'
         var touchStartAt = 0, touchMoved = false, suppressNextClick = false
         document.addEventListener('touchstart', function (e) {
           if (!e.target.closest || !e.target.closest(LIVE_SEL)) return
@@ -882,7 +884,7 @@ const { title, description, image } = Astro.props
           try { Fancybox.unbind(document.body) } catch (e) {}
           // 给实况项注入空骨架 data-html（Fancybox 据此把骨架渲染进 slide 并触发
           // Carousel.contentReady；JS 设避免 SSR 属性转义问题）
-          document.querySelectorAll('[data-fancybox][data-pvt]:not([data-html]), [data-fancybox][data-motion]:not([data-html])').forEach(function (el) {
+          document.querySelectorAll('[data-fancybox][data-pvt]:not([data-html]), [data-fancybox][data-motion]:not([data-html]), [data-fancybox][data-video]:not([data-html])').forEach(function (el) {
             el.setAttribute('data-html', '<div class="lp-player"></div>')
           })
           Fancybox.bind('[data-fancybox]', {
@@ -950,7 +952,7 @@ const { title, description, image } = Astro.props
           var gen = generation
           queue = []
           active = 0
-          var liveImgs = document.querySelectorAll('img[data-live-pvt], img[data-live-motion]')
+          var liveImgs = document.querySelectorAll('img[data-live-pvt], img[data-live-motion], img[data-live-video]')
           if (!liveImgs.length) return
           // 切页后旧 observer 失效，重建
           if (observer) observer.disconnect()
