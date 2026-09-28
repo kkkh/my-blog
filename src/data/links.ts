@@ -242,6 +242,12 @@ export const friendLinks: LinkCategory[] = [
         avatar: 'https://img.xscnet.cn//i/2026/06/28/6a40e72d6a01e.jpg',
         desc: 'Trust the process.',
       },
+      {
+        name: '桃之天天',
+        url: 'https://taozhiyy.top',
+        avatar: 'https;//taozhiyy.top/cos/1.png',
+        desc: '桃之天天的小屋',
+      },
     ],
   },
   {
