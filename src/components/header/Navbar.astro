@@ -7,62 +7,185 @@
 //   状态二（激活态，scrollY ≥ 50）: fixed 居中胶囊，深色半透明 + 毛玻璃
 // 由 <script is:inline> 监听滚动切换 `.is-scrolled` 类驱动，纯 CSS 过渡。
 //
+// 菜单结构：7 个顶级项 + 两个 hover 下拉分组（整理 / 友人），
+//   移动端（≤768px）折叠为汉堡抽屉面板，子项在面板内平铺。
+//   全部路由已核对：/ /archives /tags /categories /projects /tools
+//   /galleries /links /links/apply /links/fcircle /about
+//
 // 注意：
 //   ① 组件为绝对/固定定位、覆盖在内容之上，页面首屏若需要，请在 main
 //      顶部补 padding-top（参考设计为沉浸式覆盖，未强制预留）。
 //   ② 若放进被 Swup 替换的 <main> 容器，`data-swup-ignore-script` 防止
 //      脚本被 SwupScriptsPlugin 每切一页克隆重跑（监听器挂在 document，
 //      与本站 Fancybox / fclite 脚本同一套约定）。
-//   ③ 菜单位置请按你的真实路由调整下方 NAV_LINKS。
-//   ④ 配色为参考设计（深色）的 1:1 还原；站点亮色主题如需适配，
+//   ③ 配色为参考设计（深色）的 1:1 还原；站点亮色主题如需适配，
 //      改 .navbar__logo / .navbar__link 的颜色即可。
 // ============================================================================
 
-// —— 导航菜单配置：标签 → 真实路由（本站现有页面可参考注释）——
-const NAV_LINKS = [
-  { label: '导航', href: '/' }, // 本站可换成 /archives（归档）
-  { label: '整理', href: '/archives' },
-  { label: '友人', href: '/links' }, // 友链
-  { label: '留言', href: '/links/apply' }, // 申请页带评论区，可换成 /links
-  { label: '分享', href: '/tags' }, // 本站无独立分享页，暂指标签页
+type NavLink = { label: string; href: string }
+type NavGroup = { label: string; items: NavLink[] }
+type NavItem = NavLink | NavGroup
+
+const NAV_LINKS: NavItem[] = [
+  { label: '导航', href: '/' },
+  {
+    label: '整理',
+    items: [
+      { label: '归档', href: '/archives' },
+      { label: '标签', href: '/tags' },
+      { label: '分类', href: '/categories' },
+    ],
+  },
+  { label: '项目', href: '/projects' },
+  { label: '工具', href: '/tools' },
+  { label: '相册', href: '/galleries' },
+  {
+    label: '友人',
+    items: [
+      { label: '友链展示', href: '/links' },
+      { label: '友链申请', href: '/links/apply' },
+      { label: '朋友动态', href: '/links/fcircle' },
+    ],
+  },
   { label: '关于', href: '/about' },
 ]
-// 现有全部路由：/ /archives /projects /tools /galleries /links
-//             /links/fcircle /links/apply /categories /tags /about
 ---
 
 <header id="site-navbar" class="navbar">
-  <!-- Logo：Liu{·}Shen —— 普通字符纯白 600，花括号青绿，圆点浅蓝 -->
-  <a href="/" class="navbar__logo" aria-label="Liu{·}Shen，回到首页">
-    Liu<span class="logo-brace">&#123;</span><span class="logo-dot">·</span><span class="logo-brace">&#125;</span>Shen
+  <!-- Logo：Ming{·}CY —— 普通字符纯白 600，花括号青绿，圆点浅蓝 -->
+  <a href="/" class="navbar__logo" aria-label="Ming{·}CY，回到首页">
+    Ming<span class="logo-brace">&#123;</span><span class="logo-dot">·</span><span
+      class="logo-brace">&#125;</span
+    >CY
   </a>
 
-  <!-- 横向导航菜单：导航 / 整理 / 友人 / 留言 / 分享 / 关于 -->
+  <!-- 横向导航菜单（桌面端）：平铺项 + 下拉分组 -->
   <nav class="navbar__menu" aria-label="主导航">
     {
-      NAV_LINKS.map((item) => (
-        <a href={item.href} class="navbar__link">{item.label}</a>
-      ))
+      NAV_LINKS.map((item) =>
+        'href' in item ? (
+          <a href={item.href} class="navbar__link">
+            {item.label}
+          </a>
+        ) : (
+          <div class="navbar__item">
+            <a href={item.items[0].href} class="navbar__link navbar__link--parent">
+              {item.label}
+              <svg
+                class="navbar__caret"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                width="0.8em"
+                height="0.8em"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </a>
+            <div class="navbar__dropdown">
+              {item.items.map((sub) => (
+                <a href={sub.href} class="navbar__dropdown-link">
+                  {sub.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        ),
+      )
     }
   </nav>
 
-  <!-- 功能按钮：搜索 / 功能菜单（内联 SVG，lucide 线条风格） -->
+  <!-- 功能按钮：搜索 / 汉堡（移动端） -->
   <div class="navbar__actions">
     <button type="button" class="navbar__icon" aria-label="搜索">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="1.15rem" height="1.15rem" aria-hidden="true">
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.3-4.3" />
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        width="1.15rem"
+        height="1.15rem"
+        aria-hidden="true"
+      >
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.3-4.3"></path>
       </svg>
     </button>
-    <button type="button" class="navbar__icon" aria-label="功能菜单">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="1.15rem" height="1.15rem" aria-hidden="true">
-        <line x1="4" x2="20" y1="6" y2="6" />
-        <line x1="4" x2="20" y1="12" y2="12" />
-        <line x1="4" x2="20" y1="18" y2="18" />
+    <button
+      type="button"
+      class="navbar__icon navbar__burger"
+      aria-label="打开菜单"
+      aria-expanded="false"
+      aria-controls="navbar-drawer"
+    >
+      <svg
+        class="navbar__burger-open"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        width="1.15rem"
+        height="1.15rem"
+        aria-hidden="true"
+      >
+        <line x1="4" x2="20" y1="6" y2="6"></line>
+        <line x1="4" x2="20" y1="12" y2="12"></line>
+        <line x1="4" x2="20" y1="18" y2="18"></line>
+      </svg>
+      <svg
+        class="navbar__burger-close"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        width="1.15rem"
+        height="1.15rem"
+        aria-hidden="true"
+      >
+        <path d="M18 6 6 18"></path>
+        <path d="m6 6 12 12"></path>
       </svg>
     </button>
   </div>
 </header>
+
+<!-- 移动端汉堡抽屉面板（≤768px 显示） -->
+<div id="navbar-drawer" class="navbar__drawer" aria-hidden="true">
+  <nav class="navbar__drawer-inner" aria-label="移动端导航">
+    {
+      NAV_LINKS.map((item) =>
+        'href' in item ? (
+          <a href={item.href} class="navbar__drawer-link">
+            {item.label}
+          </a>
+        ) : (
+          <div class="navbar__drawer-group">
+            <div class="navbar__drawer-title">{item.label}</div>
+            {item.items.map((sub) => (
+              <a href={sub.href} class="navbar__drawer-link navbar__drawer-link--sub">
+                {sub.label}
+              </a>
+            ))}
+          </div>
+        ),
+      )
+    }
+  </nav>
+</div>
 
 <style>
   /* ============ 状态一：初始默认态（滚动距离 < 50px） ============ */
@@ -100,11 +223,11 @@ const NAV_LINKS = [
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2); /* 悬浮阴影 */
   }
 
-  /* ============ Logo：Liu{·}Shen ============ */
+  /* ============ Logo：Ming{·}CY ============ */
   .navbar__logo {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-      'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
-      sans-serif; /* 无衬线系统字体 */
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; /* 无衬线系统字体 */
     font-size: 1.35rem;
     font-weight: 600;
     letter-spacing: 0.5px;
@@ -114,30 +237,89 @@ const NAV_LINKS = [
     user-select: none;
   }
   .logo-brace {
-    color: #34d399; /* 花括号 { }：青绿色 */
+    color: #2dd4bf; /* 花括号 { }：青绿色（teal-400） */
   }
   .logo-dot {
     color: #60a5fa; /* 圆点 ·：浅蓝色 */
   }
 
-  /* ============ 导航菜单 ============ */
+  /* ============ 导航菜单（桌面端） ============ */
   .navbar__menu {
     display: flex;
     align-items: center;
-    gap: 1.75rem; /* 菜单项间距 */
+    gap: 1.4rem; /* 菜单项间距 */
     margin-left: auto; /* 菜单 + 功能按钮整体靠右（与 Logo 分居左右） */
   }
   .navbar__link {
     font-size: 0.95rem;
     color: #e2e8f0; /* 默认浅灰 */
     text-decoration: none; /* 无下划线 */
+    white-space: nowrap;
     transition: color 0.2s; /* 颜色过渡 0.2s */
   }
   .navbar__link:hover {
     color: #60a5fa; /* hover 主题蓝 */
   }
+  .navbar__link--parent {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2em;
+  }
+  .navbar__caret {
+    opacity: 0.7;
+    transition: transform 0.2s;
+  }
+  .navbar__item:hover .navbar__caret {
+    transform: rotate(180deg);
+  }
 
-  /* ============ 功能按钮：搜索 / 功能菜单 ============ */
+  /* ============ 下拉分组（hover / focus-within 展开） ============ */
+  .navbar__item {
+    position: relative;
+  }
+  .navbar__dropdown {
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    left: 50%;
+    min-width: 8.5rem;
+    padding: 0.5rem;
+    background-color: rgba(15, 23, 42, 0.88);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(4px);
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s ease,
+      visibility 0.2s;
+  }
+  .navbar__item:hover .navbar__dropdown,
+  .navbar__item:focus-within .navbar__dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+  .navbar__dropdown-link {
+    display: block;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.9rem;
+    color: #e2e8f0;
+    text-decoration: none;
+    border-radius: 0.5rem;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+  }
+  .navbar__dropdown-link:hover {
+    background-color: rgba(96, 165, 250, 0.12);
+    color: #60a5fa;
+  }
+
+  /* ============ 功能按钮：搜索 / 汉堡 ============ */
   .navbar__actions {
     display: flex;
     align-items: center;
@@ -163,8 +345,81 @@ const NAV_LINKS = [
     outline-offset: 2px;
     border-radius: 6px;
   }
+  .navbar__burger {
+    display: none; /* 默认隐藏，≤768px 显示 */
+  }
+  .navbar__burger-close {
+    display: none;
+  }
+  .navbar.is-drawer-open .navbar__burger-open {
+    display: none;
+  }
+  .navbar.is-drawer-open .navbar__burger-close {
+    display: block;
+  }
 
-  /* ============ 基础响应式：窄屏隐藏文字菜单，保留 Logo + 图标 ============ */
+  /* ============ 移动端汉堡抽屉面板 ============ */
+  .navbar__drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 990; /* 位于 navbar（1000）之下，顶部滑下 */
+    display: none; /* 默认隐藏，≤768px 显示 */
+    padding: 4.5rem 1.5rem 1.5rem; /* 顶部避开 navbar 高度 */
+    background-color: rgba(15, 23, 42, 0.92);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition:
+      opacity 0.25s ease,
+      transform 0.25s ease,
+      visibility 0.25s;
+  }
+  .navbar__drawer.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  .navbar__drawer-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .navbar__drawer-link {
+    display: block;
+    padding: 0.7rem 0.9rem;
+    font-size: 1rem;
+    color: #e2e8f0;
+    text-decoration: none;
+    border-radius: 0.6rem;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+  }
+  .navbar__drawer-link:hover {
+    background-color: rgba(96, 165, 250, 0.12);
+    color: #60a5fa;
+  }
+  .navbar__drawer-title {
+    padding: 0.9rem 0.9rem 0.2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .navbar__drawer-link--sub {
+    padding-left: 1.6rem;
+    font-size: 0.95rem;
+    color: #cbd5e1;
+  }
+
+  /* ============ 响应式：≤768px 隐藏横向菜单，显示汉堡 + 抽屉 ============ */
   @media (max-width: 768px) {
     .navbar__menu {
       display: none;
@@ -172,11 +427,18 @@ const NAV_LINKS = [
     .navbar__actions {
       margin-left: auto; /* 图标按钮保持靠右 */
     }
+    .navbar__burger {
+      display: inline-flex;
+    }
+    .navbar__drawer {
+      display: block;
+    }
   }
 </style>
 
 <script is:inline data-swup-ignore-script>
   // 滚动监听：scrollY ≥ 50 切换 `.is-scrolled`，驱动 CSS 双状态过渡
+  // 汉堡抽屉：点击切换 `.is-open`，点外部 / Esc / Swup 切页时关闭
   ;(function () {
     // 幂等守卫：若组件被 Swup 塞进 <main> 反复重建，只绑定一次
     if (window.__gyozaNavbarInit) return
@@ -204,5 +466,45 @@ const NAV_LINKS = [
     document.addEventListener('astro:page-load', function () {
       setTimeout(update, 0)
     })
+
+    // ---------- 汉堡抽屉 ----------
+    var burger = header.querySelector('.navbar__burger')
+    var drawer = document.getElementById('navbar-drawer')
+    if (burger && drawer) {
+      function setDrawer(open) {
+        drawer.classList.toggle('is-open', open)
+        drawer.setAttribute('aria-hidden', open ? 'false' : 'true')
+        burger.setAttribute('aria-expanded', open ? 'true' : 'false')
+        burger.setAttribute('aria-label', open ? '关闭菜单' : '打开菜单')
+        header.classList.toggle('is-drawer-open', open)
+      }
+
+      burger.addEventListener('click', function (event) {
+        event.stopPropagation()
+        setDrawer(!drawer.classList.contains('is-open'))
+      })
+
+      // 点面板外部关闭
+      document.addEventListener('click', function (event) {
+        if (!drawer.classList.contains('is-open')) return
+        if (drawer.contains(event.target) || burger.contains(event.target)) return
+        setDrawer(false)
+      })
+
+      // Esc 关闭
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') setDrawer(false)
+      })
+
+      // 点击抽屉内链接后关闭（交给 Swup 切页事件兜底，这里直接关避免闪烁）
+      drawer.addEventListener('click', function (event) {
+        if (event.target.closest('a')) setDrawer(false)
+      })
+
+      // Swup 切页后关闭抽屉
+      document.addEventListener('swup:page:view', function () {
+        setDrawer(false)
+      })
+    }
   })()
 </script>
