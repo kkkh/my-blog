@@ -11,7 +11,6 @@ import { ToastContainer } from '@/components/ToastContainer'
 import { ModalStack } from '@/components/ui/modal'
 import Analytics from '@vercel/analytics/astro'
 import { site } from '@/config.json'
-import AuroraBackground from '@/components/background/AuroraBackground.astro'
 import '@/styles/global.css'
 
 interface Props {
@@ -49,9 +48,21 @@ const { title, description, image } = Astro.props
     <link rel="stylesheet" href="/fancybox/fancybox.min.css" />
   </head>
   <body>
-    <AuroraBackground />
+    <!-- 全局壁纸背景：webp.mingcy.cn 随机壁纸 + 高斯模糊 + 明暗遮罩，避免影响文字 -->
+    <div class="site-wallpaper" aria-hidden="true"></div>
     <div class="site-grain hidden-mobile pointer-events-none fixed inset-0 z-0" aria-hidden="true">
     </div>
+    <script is:inline data-swup-ignore-script>
+      // 壁纸 URL 带时间戳缓存杀手：每次整页加载都从 webp.mingcy.cn 拉取一张新随机壁纸；
+      // Swup 切页不重建 body，此脚本只跑一次，SPA 导航期间壁纸保持稳定不闪变
+      ;(function () {
+        var el = document.querySelector('.site-wallpaper')
+        if (el) {
+          el.style.backgroundImage =
+            "url('https://webp.mingcy.cn?v=' + Date.now())"
+        }
+      })()
+    </script>
 
     <slot />
 

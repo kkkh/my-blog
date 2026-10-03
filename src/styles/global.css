@@ -257,7 +257,6 @@ html[data-theme='dark'] .spoiler:hover {
 
 /* ─── Card Glass CSS Variables ─── */
 :root {
-  --page-bg: #f2f5ec;
   --card-glass-bg: rgb(from var(--color-bg-primary) r g b / 0.45);
   --card-glass-border: rgba(0, 0, 0, 0.05);
   --card-glass-shadow: 0 0 0 1px rgba(0, 0, 0, 0.02), 0 4px 20px rgba(0, 0, 0, 0.05);
@@ -271,7 +270,6 @@ html[data-theme='dark'] .spoiler:hover {
 }
 
 html[data-theme='dark'] {
-  --page-bg: #10131a;
   --card-glass-bg: rgb(from var(--color-bg-primary) r g b / 0.18);
   --card-glass-border: rgba(255, 255, 255, 0.06);
   --card-glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -282,14 +280,34 @@ html[data-theme='dark'] {
   --post-card-border: rgba(78, 134, 255, 0.45);
 }
 
-/* Hide Aurora in dark mode */
-html[data-theme='dark'] .aurora-container {
-  display: none;
+/* ─── 全局壁纸背景（webp.mingcy.cn 随机壁纸 + 高斯模糊 + 明暗遮罩） ─── */
+.site-wallpaper {
+  position: fixed;
+  inset: -48px; /* 向外扩一圈：模糊后边缘不留白边 */
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  filter: blur(24px) saturate(1.1); /* 高斯模糊：避免影响文字 */
+  transform: scale(1.05); /* 配合 inset 防模糊边缘漏出 */
+  contain: paint;
+}
+
+/* 可读性遮罩：亮色浅色半透 / 暗色深色半透，保证文字对比度 */
+.site-wallpaper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--color-bg-primary, 242 245 236) / 0.5);
+}
+
+html[data-theme='dark'] .site-wallpaper::after {
+  background: rgb(var(--color-bg-primary, 16 19 26) / 0.65);
 }
 
 /* Home page background */
 .page-bg-home {
-  background: var(--page-bg);
+  background: rgb(var(--color-bg-primary, 242 245 236) / 0.45);
 }
 
 /* ─── Glass Card (Dark 3D Liquid Glass inspired) ─── */
@@ -422,9 +440,6 @@ body.is-scrolling .comment-block {
   gap: 1rem;
 }
 
-.left-sidebar {
-  display: none;
-}
 .right-sidebar {
   display: none;
 }
@@ -477,16 +492,14 @@ body.is-scrolling .comment-block {
 }
 
 @media (min-width: 769px) {
-  .left-sidebar {
-    display: block;
-  }
+  /* 左栏合并入右栏后：文章列表独占左侧拉长，右侧单列侧边栏 */
   .home-grid {
-    grid-template-columns: 240px 1fr 280px;
+    grid-template-columns: minmax(0, 1fr) 280px;
     gap: 1rem;
   }
 }
 
-/* stack the right sidebar cards below 769px (hide left) */
+/* right sidebar cards below 769px */
 @media (min-width: 641px) and (max-width: 768px) {
   .sidebar-col {
     gap: 1rem;

@@ -2,7 +2,7 @@
 import Layout from './Layout.astro'
 import { HeadGradient } from '@/components/head-gradient'
 import Footer from '@/components/footer/Footer.astro'
-import { Header } from '@/components/header/Header'
+import Navbar from '@/components/header/Navbar.astro'
 import { Provider } from '@/components/provider/Provider'
 import ParticlesBg from '@/components/background/ParticlesBg'
 import CommentFAB from '@/components/post/CommentFAB.astro'
@@ -29,8 +29,8 @@ const { title, description, image, mdTitle, mdDescription, mdSlug } = Astro.prop
     client:only="react"
   />
 
-  <Header client:only="react" />
-  <main class="relative z-1 pt-16 min-h-main bg-primary">
+  <Navbar />
+  <main class="relative z-1 pt-16 min-h-main bg-primary/75">
     <HeadGradient client:idle />
     <CommentFAB />
     <div class="swup-transition-fade relative">

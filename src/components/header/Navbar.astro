@@ -1,0 +1,208 @@
+---
+// ============================================================================
+// Navbar.astro —— 滚动形变式沉浸式顶部导航栏（单文件，零第三方依赖）
+//
+// 双状态逻辑：
+//   状态一（默认态，scrollY < 50）: absolute 铺满页面顶部，完全透明
+//   状态二（激活态，scrollY ≥ 50）: fixed 居中胶囊，深色半透明 + 毛玻璃
+// 由 <script is:inline> 监听滚动切换 `.is-scrolled` 类驱动，纯 CSS 过渡。
+//
+// 注意：
+//   ① 组件为绝对/固定定位、覆盖在内容之上，页面首屏若需要，请在 main
+//      顶部补 padding-top（参考设计为沉浸式覆盖，未强制预留）。
+//   ② 若放进被 Swup 替换的 <main> 容器，`data-swup-ignore-script` 防止
+//      脚本被 SwupScriptsPlugin 每切一页克隆重跑（监听器挂在 document，
+//      与本站 Fancybox / fclite 脚本同一套约定）。
+//   ③ 菜单位置请按你的真实路由调整下方 NAV_LINKS。
+//   ④ 配色为参考设计（深色）的 1:1 还原；站点亮色主题如需适配，
+//      改 .navbar__logo / .navbar__link 的颜色即可。
+// ============================================================================
+
+// —— 导航菜单配置：标签 → 真实路由（本站现有页面可参考注释）——
+const NAV_LINKS = [
+  { label: '导航', href: '/' }, // 本站可换成 /archives（归档）
+  { label: '整理', href: '/archives' },
+  { label: '友人', href: '/links' }, // 友链
+  { label: '留言', href: '/links/apply' }, // 申请页带评论区，可换成 /links
+  { label: '分享', href: '/tags' }, // 本站无独立分享页，暂指标签页
+  { label: '关于', href: '/about' },
+]
+// 现有全部路由：/ /archives /projects /tools /galleries /links
+//             /links/fcircle /links/apply /categories /tags /about
+---
+
+<header id="site-navbar" class="navbar">
+  <!-- Logo：Liu{·}Shen —— 普通字符纯白 600，花括号青绿，圆点浅蓝 -->
+  <a href="/" class="navbar__logo" aria-label="Liu{·}Shen，回到首页">
+    Liu<span class="logo-brace">&#123;</span><span class="logo-dot">·</span><span class="logo-brace">&#125;</span>Shen
+  </a>
+
+  <!-- 横向导航菜单：导航 / 整理 / 友人 / 留言 / 分享 / 关于 -->
+  <nav class="navbar__menu" aria-label="主导航">
+    {
+      NAV_LINKS.map((item) => (
+        <a href={item.href} class="navbar__link">{item.label}</a>
+      ))
+    }
+  </nav>
+
+  <!-- 功能按钮：搜索 / 功能菜单（内联 SVG，lucide 线条风格） -->
+  <div class="navbar__actions">
+    <button type="button" class="navbar__icon" aria-label="搜索">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="1.15rem" height="1.15rem" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+    </button>
+    <button type="button" class="navbar__icon" aria-label="功能菜单">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="1.15rem" height="1.15rem" aria-hidden="true">
+        <line x1="4" x2="20" y1="6" y2="6" />
+        <line x1="4" x2="20" y1="12" y2="12" />
+        <line x1="4" x2="20" y1="18" y2="18" />
+      </svg>
+    </button>
+  </div>
+</header>
+
+<style>
+  /* ============ 状态一：初始默认态（滚动距离 < 50px） ============ */
+  .navbar {
+    position: absolute; /* 吸附页面最顶部，不占文档流 */
+    top: 0;
+    left: 0;
+    width: 100%; /* 全宽，无左右边距 */
+    z-index: 1000; /* 始终位于页面最上层 */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    padding: 1.5rem 2rem; /* 上下 1.5rem，左右 2rem */
+    background-color: transparent; /* 完全透明 */
+    border-radius: 0;
+    box-shadow: none;
+    /* 双状态切换统一过渡：0.3s 缓出 */
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ============ 状态二：滚动激活态（滚动距离 ≥ 50px） ============ */
+  .navbar.is-scrolled {
+    position: fixed; /* 固定于视口顶部 */
+    top: 1rem; /* 顶部距离视口 1rem */
+    left: 50%; /* left:50% + translateX(-50%) 水平居中 */
+    transform: translateX(-50%);
+    width: calc(100% - 2rem); /* 左右各留 1rem */
+    max-width: 1200px;
+    padding: 0.75rem 1.5rem; /* 上下 0.75rem，左右 1.5rem */
+    background-color: rgba(15, 23, 42, 0.8); /* 深色半透明 */
+    -webkit-backdrop-filter: blur(12px); /* 毛玻璃（Safari 前缀） */
+    backdrop-filter: blur(12px);
+    border-radius: 999px; /* 完整胶囊 */
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2); /* 悬浮阴影 */
+  }
+
+  /* ============ Logo：Liu{·}Shen ============ */
+  .navbar__logo {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+      sans-serif; /* 无衬线系统字体 */
+    font-size: 1.35rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #ffffff; /* 普通字符纯白 */
+    text-decoration: none;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .logo-brace {
+    color: #34d399; /* 花括号 { }：青绿色 */
+  }
+  .logo-dot {
+    color: #60a5fa; /* 圆点 ·：浅蓝色 */
+  }
+
+  /* ============ 导航菜单 ============ */
+  .navbar__menu {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem; /* 菜单项间距 */
+    margin-left: auto; /* 菜单 + 功能按钮整体靠右（与 Logo 分居左右） */
+  }
+  .navbar__link {
+    font-size: 0.95rem;
+    color: #e2e8f0; /* 默认浅灰 */
+    text-decoration: none; /* 无下划线 */
+    transition: color 0.2s; /* 颜色过渡 0.2s */
+  }
+  .navbar__link:hover {
+    color: #60a5fa; /* hover 主题蓝 */
+  }
+
+  /* ============ 功能按钮：搜索 / 功能菜单 ============ */
+  .navbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 1rem;
+  }
+  .navbar__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    background: transparent;
+    border: 0;
+    color: #e2e8f0; /* 样式与文字导航一致 */
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  .navbar__icon:hover {
+    color: #60a5fa;
+  }
+  .navbar__icon:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* ============ 基础响应式：窄屏隐藏文字菜单，保留 Logo + 图标 ============ */
+  @media (max-width: 768px) {
+    .navbar__menu {
+      display: none;
+    }
+    .navbar__actions {
+      margin-left: auto; /* 图标按钮保持靠右 */
+    }
+  }
+</style>
+
+<script is:inline data-swup-ignore-script>
+  // 滚动监听：scrollY ≥ 50 切换 `.is-scrolled`，驱动 CSS 双状态过渡
+  ;(function () {
+    // 幂等守卫：若组件被 Swup 塞进 <main> 反复重建，只绑定一次
+    if (window.__gyozaNavbarInit) return
+    window.__gyozaNavbarInit = true
+
+    var header = document.getElementById('site-navbar')
+    if (!header) return
+
+    var THRESHOLD = 50 // 滚动触发阈值（px）
+
+    // 状态判定：≥ 50px 进入激活态（固定胶囊），否则回默认态
+    function update() {
+      header.classList.toggle('is-scrolled', window.scrollY >= THRESHOLD)
+    }
+
+    update() // 页面初始化时立即执行一次状态判断
+    window.addEventListener('scroll', update, { passive: true }) // passive 优化滚动性能
+    window.addEventListener('load', update) // 刷新后浏览器恢复滚动位置时兜底
+    window.addEventListener('pageshow', update) // bfcache 返回时兜底
+
+    // Swup 切页 / Astro 岛加载后滚动位置重置，重新判定一次
+    document.addEventListener('swup:page:view', function () {
+      setTimeout(update, 0)
+    })
+    document.addEventListener('astro:page-load', function () {
+      setTimeout(update, 0)
+    })
+  })()
+</script>

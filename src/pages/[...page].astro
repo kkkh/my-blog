@@ -50,14 +50,12 @@ const getPageUrl = (page: number) => {
     {
       currentPage === 1 ? (
         <div class="home-grid max-w-[1200px] px-4 md:px-8 py-10 mx-auto">
-          <aside class="left-sidebar sidebar-col">
-            <ProfileCard />
-            <YiyanCard />
-          </aside>
           <div class="min-w-0">
             <PostList posts={data} />
           </div>
           <aside class="right-sidebar sidebar-col">
+            <ProfileCard />
+            <YiyanCard />
             <GreetingClock client:load />
             <BgImageCard />
             <SiteInfoCard />

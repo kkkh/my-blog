@@ -77,6 +77,32 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-10-04 - 全局背景壁纸：替换 Aurora 为 webp.mingcy.cn 随机壁纸 + 高斯模糊 + 明暗遮罩
+
+**背景：** 用户要求把全局背景改为 `https://webp.mingcy.cn` 的随机壁纸（该域名每次请求返回一张新随机壁纸，实测 200 / image/webp / 1672×941 / 每次哈希不同），并增加模糊效果避免影响文字阅读。
+
+**修改文件：**
+
+- `src/layouts/Layout.astro`
+- `src/styles/global.css`
+- `src/layouts/PageLayout.astro`
+- `src/layouts/MarkdownLayout.astro`
+- `src/components/footer/Footer.astro`
+
+**修改内容：**
+
+- **Layout.astro**：移除 `<AuroraBackground />`（CSS 极光，暗色模式本就隐藏，弃用），改为全局壁纸层 `<div class="site-wallpaper">`（`position:fixed` 铺满视口，`aria-hidden`，`pointer-events:none`）；壁纸 URL 用**内联脚本 + 时间戳缓存杀手**注入（`url('https://webp.mingcy.cn?v=' + Date.now())`），每次整页加载都拉新随机壁纸；脚本带 `data-swup-ignore-script` + 只跑一次的幂等逻辑 —— Swup 切页不重建 body，SPA 导航期间壁纸保持稳定不闪变（不需要每页重拉）
+- **global.css**：新增 `.site-wallpaper` 样式 —— `background-size:cover` + `background-position:center`、`filter:blur(24px) saturate(1.1)` 高斯模糊、`inset:-48px` + `transform:scale(1.05)` 防模糊边缘露白、`contain:paint`；`::after` 可读性遮罩（亮色 `rgb(var(--color-bg-primary, 242 245 236) / .5)`、暗色 `/ .65`，带 fallback 防注入器未跑时透明）；`.page-bg-home` 从实色 `--page-bg` 改为半透明 `rgb(var(--color-bg-primary) / .45)`；删除已无引用的 `--page-bg` 变量（:root 与 dark 两处）与 `html[data-theme='dark'] .aurora-container` 死规则
+- **PageLayout.astro**：非首页 main `bg-primary` → `bg-primary/50`（半透明，壁纸透出）
+- **MarkdownLayout.astro**：文章页 main `bg-primary` → `bg-primary/75`（正文可读性优先，壁纸只淡淡透出）
+- **Footer.astro**：页脚 `bg-primary` → `bg-primary/70`
+
+**不动的部分：** `AuroraBackground.astro` 组件文件保留未删除（不再被引用，Astro 不打包即可）；Navbar / Hero / 卡片玻璃材质（card-glass 自带 backdrop-filter）均未改；`config.json` / `astro.config.js` / `package.json` 未改，无新增依赖。
+
+**验证：** `pnpm exec astro check` 112 files / 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 212 pages Complete。dist 核验：`dist/index.html` 含 `site-wallpaper` 层 + `webp.mingcy.cn?v=' + Date.now()` 内联脚本 + `data-swup-ignore-script`；首页 main 为 `page-bg-home`、归档页 main 为 `bg-primary/50`、文章页为 `bg-primary/75`、页脚 `/70`；`_page_.*.css` 含 `bg-primary\/50`/`\/70`/`\/75` 三条半透明规则；`_spec_.*.css` 含 `.site-wallpaper`（blur(24px) saturate(1.1)）+ `::after` 亮/暗双遮罩 + `.page-bg-home` 半透明。
+
+**注意：** ①壁纸只随**整页加载**变化（内联脚本只跑一次），Swup 切页期间保持同一张 —— 如需每次切页换壁纸需在 `swup:page:view` 里重写 `backgroundImage`（本次未做，切页重拉有闪烁风险）；②`bg-primary/50` 等半透明值依赖 Tailwind 对 `rgb(var(--color-bg-primary))` 的 alpha 修饰支持（实测生成 `rgb(var(--color-bg-primary) / .5)`）；③若某张壁纸较亮/较暗影响文字对比度，可调 `::after` 遮罩 alpha（亮色 .5 / 暗色 .65 是当前平衡值）。
+
 ### 2026-09-19 18:50 - 文章页元信息栏：5 项同一行 + 图标统一为内联 SVG（去除 iconfont）
 
 **背景：** 用户要求文章页顶部的「发布日期（写入时间）、最后修改时间、字数、阅读时长、阅读量」5 项排成同一行，且每项前的图标不要用 iconfont，改为自己写/找 SVG。
