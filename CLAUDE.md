@@ -77,6 +77,33 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-10-04 - 导航栏重构：全站菜单接入两个下拉分组 + 移动端汉堡抽屉 + Logo 改 Ming{·}CY
+
+**背景：** 用户提供两套适配 Pi 的精准提示词（UI 效果图 / Astro 组件），要求导航栏覆盖全站所有页面：不只友链，还有相册、工具、项目、归档、标签、关于；同时按提示词把品牌改为 `Ming{·}CY`、花括号青绿 `#2dd4bf`（teal-400）、移动端折叠为汉堡菜单。用户确认菜单结构后执行。
+
+**修改文件：**
+
+- `src/components/header/Navbar.astro`（唯一改动，单文件重写）
+
+**修改内容：**
+
+- **菜单结构**（`NAV_LINKS` 改为联合类型 `NavItem = NavLink | NavGroup`，`'href' in item` 收窄）：7 个顶级项 + 两个 hover 下拉分组：
+  - 导航 → `/`（直链）
+  - **整理 ▾**（下拉）：归档 `/archives`、标签 `/tags`、分类 `/categories`
+  - 项目 → `/projects`（直链）
+  - 工具 → `/tools`（直链）
+  - 相册 → `/galleries`（直链）
+  - **友人 ▾**（下拉）：友链展示 `/links`、友链申请 `/links/apply`、朋友动态 `/links/fcircle`
+  - 关于 → `/about`（直链）
+- **Logo**：`Liu{·}Shen` → `Ming{·}CY`，花括号 `#34d399` → `#2dd4bf`（teal-400，按提示词），圆点 `#60a5fa` 保留
+- **下拉交互**：`.navbar__item` 容器 `position:relative` + `.navbar__dropdown`（absolute 居中、毛玻璃 `rgba(15,23,42,.88)` + blur(12px)、圆角、阴影），`hover` / `focus-within` 展开（opacity + translateY 淡入），caret 箭头 hover 旋转 180°；分组链接用 `item.items[0].href` 作 parent 直达（整理→/archives、友人→/links）
+- **移动端汉堡抽屉**（≤768px）：横向菜单 `display:none` → 汉堡按钮 + 顶部滑下抽屉面板（`#navbar-drawer`，fixed top-0 z-990、毛玻璃 blur(16px)、`.is-open` 动画、分组标题 `.navbar__drawer-title` + 子项缩进 `--sub`）；JS：点击切换、点外部关闭、Esc 关闭、点击抽屉内链接关闭、Swup `swup:page:view` 切页关闭；汉堡图标切 ✕（`.navbar.is-drawer-open` 控制两枚 SVG 显隐）；`aria-expanded` / `aria-hidden` / `aria-label` 同步
+- **保留不动**：滚动形变双状态（默认透明全宽 ↔ ≥50px 居中毛玻璃胶囊 `rgba(15,23,42,.8)` + blur(12px) + 999px 圆角）、搜索图标、过渡动画、`data-swup-ignore-script` + `__gyozaNavbarInit` 幂等守卫、`swup:page:view` / `astro:page-load` 滚动重判
+
+**验证：** `pnpm exec astro check` 112 files / 0 errors / 0 warnings / 0 hints（含 prettier 格式化后复验）；`pnpm exec astro build` 212 pages Complete。dist 核验：首页含 `Ming<span class="logo-brace">` + teal `#2dd4bf`、桌面菜单 7 顶级项 + 两个 `.navbar__item` 下拉（归档/标签/分类、友链展示/申请/朋友动态 各 3 项）、`#navbar-drawer` 抽屉含全部 11 项（平铺 5 + 分组子项 6）、`navbar__drawer-title` 整理/友人两组、汉堡按钮 + `is-drawer-open` 图标切换 CSS；`@media (max-width:768px)` 块含 `.navbar__menu{display:none}` / `.navbar__burger{display:inline-flex}` / `.navbar__drawer{display:block}`。
+
+**注意：** ①下拉展开依赖 hover / focus-within（无 JS 也能用，纯 CSS）；②抽屉 z-990 位于 navbar（z-1000）之下、顶部滑下不盖住胶囊；③后续加页面只需改 `NAV_LINKS` 一处，桌面下拉与移动端抽屉自动同步；④提示词第 1 套（UI 效果图）为设计规范，代码环境不出图，视觉语言已直接落实在组件里。
+
 ### 2026-10-04 - 全局背景壁纸：替换 Aurora 为 webp.mingcy.cn 随机壁纸 + 高斯模糊 + 明暗遮罩
 
 **背景：** 用户要求把全局背景改为 `https://webp.mingcy.cn` 的随机壁纸（该域名每次请求返回一张新随机壁纸，实测 200 / image/webp / 1672×941 / 每次哈希不同），并增加模糊效果避免影响文字阅读。
