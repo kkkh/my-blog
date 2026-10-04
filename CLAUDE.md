@@ -77,6 +77,44 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-10-04 20:15 - 导航新增三个子域外链 + 随机壁纸一次请求两处复用
+
+**背景：** ①在导航分组的「导航」下加三个外链：笔记 `e.mingcy.cn`、编辑 `markdown.mingcy.cn`、集合 `h.mingcy.cn`；②全局背景层与右侧侧边栏卡片背景直连同一个随机接口，**同一张图被下载两次且两次返回结果不同** → 冗余请求 + 画面割裂。目标：1 次请求，两处复用，完全同步。
+
+**修改文件：** `src/components/header/Navbar.astro`、`src/styles/global.css`、`src/layouts/Layout.astro`、`src/components/sidebar/BgImageCard.astro`、`src/pages/about.astro`
+
+**① 导航外链：**
+
+- `NavLink` 类型加可选 `external?: boolean`；「导航」分组从 3 项扩到 6 项
+- 桌面下拉与移动端抽屉**都**给 `target={sub.external ? '_blank' : undefined}` + `rel='noopener noreferrer'`（Astro 传 `undefined` 会省略属性，不影响站内项）
+- `isActive()` 开头加 `/^https?:\/\//.test(href)` 直接 return false —— 外链不参与站内高亮判断，否则 `path.startsWith(href + '/')` 对外链无意义
+- 未加外链小图标（6 项里 3 项有图标会不一致），要加可后续统一处理
+
+**② 随机壁纸一次请求（核心）：**
+
+- **`global.css` `:root` 新增 `--random-bg-url: url('https://webp.mingcy.cn')`**（兑底值指向裸接口，脚本未跑也能显示一张随机图）
+- **图片从元素本身移到伪元素**：`.site-wallpaper::before, .bg-shared-media::after` 合并为**一条规则**（因为 `.site-wallpaper` 的 `::after` 已被可读性遮罩占用，无法复用）——同一 `background-image: var(--random-bg-url)`、同一 `opacity 0.9s` transition
+- 同步机制：`html.bg-ready .site-wallpaper::before, html.bg-ready .bg-shared-media::after { opacity: 1 }` —— **一个 class 切换两处**，数学上不可能不同步
+- `.site-wallpaper` 本体只留 `position:fixed / inset:-48px / background-color`（占位底色）`/ filter / contain:strict`；尺寸策略（cover / center center / no-repeat）**原样保留**，只是从元素本体下沉到 `::before`
+- 新增 `.bg-shared-media`：`position:relative + overflow:hidden + background-color: --color-bg-secondary`（占位底色，与全局背景同族）
+- **删掉旧 `.site-wallpaper.is-loading`**：图片层默认 `opacity:0` 本身就是占位态，不需要 loading class，少一个 class 同步点
+- **`Layout.astro` 脚本重写**：`new Image()` 预取 + `img.decode()` → `docEl.style.setProperty('--random-bg-url', "url('...?v=" + Date.now())")` + `docEl.classList.add('bg-ready')`；失败/8s 超时走 `fallback()` —— **不覆盖变量**（回退 `:root` 兑底值）**但仍加 `bg-ready`**，两处一起淡入、或一起停在占位底色，不会出现一处成功一处失败
+- 保留 `data-swup-ignore-script` + 只跑一次：CSS 变量挂在 `:root` 上，Swup 切页不重建 body，SPA 期间壁纸稳定
+- `background-attachment: fixed` 依旧不写（元素本身 `position:fixed` 已等效）
+
+**③ 消费方改造（2 个，共 212 页）：**
+
+- `BgImageCard.astro`：`<img src="https://webp.mingcy.cn" loading="lazy" class="h-32 w-full object-cover">` → `<div class="bg-shared-media h-32 rounded-xl" role="img" aria-label="随笔插画">`。`object-cover` 由 `::after` 的 `background-size:cover` 等效承担；丢失的 `loading="lazy"` 是**有意为之**——反正要作为壁纸立即下载，不额外花代价
+- `about.astro` 页脚装饰图（第三个消费方，用户没点名但同属「单独发请求」）：`<img ...>` → `<div class="bg-shared-media ..." aria-hidden="true">`，顺带把无意义的 `alt="random"` 改为 `aria-hidden`（纯装饰，屏读器不再念出 "random"）
+
+**验证：** `astro check` 113 files / 0 / 0 / 0；`astro build` 213 pages。dist 核验：`_spec_*.css` 含 `--random-bg-url: url(https://webp.mingcy.cn)` 与合并规则 `.site-wallpaper:before,.bg-shared-media:after{...background-image:var(--random-bg-url);background-size:cover;background-position:center center;background-repeat:no-repeat;opacity:0;transition:opacity .9s ease}`、`html.bg-ready ...{opacity:1}`；**旧 `.is-loading` 在 CSS/HTML 里 0 处残留**；`dist/index.html` 内 `webp.mingcy.cn` 共 4 处但**只有 1 处是真请求**（`var url = '...?v=' + Date.now()`），另 3 处全在 HTML/JS 注释里；导航下拉 + 抽屉各含 e/markdown/h 三外链，`target="_blank" rel="noopener noreferrer"` 各 2 处；212 个 HTML 含 `bg-shared-media`。
+
+**子域元数据实测：** e = EdgeEver（开源印象笔记）、h = CF-Navs（Cloudflare Workers 导航面板）、d = EdgeMirror（边缘镜像网关，`github.com/tianrking/EdgeMirror`）、markdown = 「火星编辑器 · Markdown 转公众号排版」、n = 「cyr — Cloud Notepad」（即已有项目 3「笔记」）。
+
+**⚠️ 遗留：** ①**「笔记」现在有两个**：项目卡 id 3 `n.mingcy.cn`（Cloud Notepad）与新加的 id 7 `e.mingcy.cn`（EdgeEver）标题都是「笔记」，而导航「笔记」指 e。要区分请给 n 改个名字（建议「云笔记」）；②`markdown.mingcy.cn`（编辑）**只进了导航，没进项目页**——本次用户只要求加导航，要同步加项目卡说一声；③三个新项目的封面图仍待放。
+
+---
+
 ### 2026-10-04 19:45 - Logo 胶囊紧凑化 + 壁纸预解码淡入 + 分类总览页 + 3 个新项目
 
 **背景：** 用户四点：①导航左侧 Ming·CY 胶囊胖肿松散；②随机壁纸尺寸/比例不一导致显示不全、裁切偏移；③把「项目、工具」挪进「导航」下拉分组，并新增 e/h/d 三个子域项目；④`/categories` 页不存在（但 `/categories/网站建站` 正常），补上并显示四字标签。

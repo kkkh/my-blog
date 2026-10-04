@@ -113,7 +113,9 @@ const { author, hero } = config
 
     <!-- Footer -->
     <div class="mt-8 text-center text-sm text-secondary/50">
-      <img src="https://webp.mingcy.cn" alt="random" class="mx-auto mt-4 h-24 w-48 rounded-lg object-cover opacity-70" />
+      <!-- 装饰图：与全局背景共用 --random-bg-url，不单独发请求 -->
+      <div class="bg-shared-media mx-auto mt-4 h-24 w-48 rounded-lg opacity-70" aria-hidden="true">
+      </div>
     </div>
   </div>
 </PageLayout>

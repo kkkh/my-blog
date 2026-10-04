@@ -48,64 +48,61 @@ const { title, description, image } = Astro.props
     <link rel="stylesheet" href="/fancybox/fancybox.min.css" />
   </head>
   <body>
-    <!-- 全局壁纸背景：webp.mingcy.cn 随机壁纸 + 高斯模糊 + 明暗遮罩，避免影响文字 -->
+    <!-- 全局壁纸背景：webp.mingcy.cn 随机壁纸 + 高斯模糊 + 明暗遮罩，避免影响文字。
+         与右侧侧边栏卡片（.bg-shared-media）共用 :root 的 --random-bg-url，只下载一次 -->
     <div class="site-wallpaper" aria-hidden="true"></div>
     <div class="site-grain hidden-mobile pointer-events-none fixed inset-0 z-0" aria-hidden="true">
     </div>
     <script is:inline data-swup-ignore-script>
-      // 壁纸 URL 带时间戳缓存杀手：每次整页加载都从 webp.mingcy.cn 拉取一张新随机壁纸；
-      // Swup 切页不重建 body，此脚本只跑一次，SPA 导航期间壁纸保持稳定不闪变
+      // 随机壁纸：一次请求，多处复用
       //
-      // 【加载过渡】先用 new Image() 预取 + decode()，解码成功后才写入 backgroundImage
-      // 并摘掉 .is-loading（走 CSS 的 0.9s 淡入）。同步加 .is-loading 在首帧绘制前，
-      // 所以不会出现「先露出兜底图、再换成新图」的两次跳变。
-      // 解码失败时也只摘掉 .is-loading，退回 CSS 兜底图/纯色，宁缺不多。
+      // 全局背景层（.site-wallpaper）与右侧侧边栏卡片（.bg-shared-media）以前各自直连
+      // webp.mingcy.cn，同一张随机图被下载两次，且两次返回结果不同 → 画面割裂。
+      // 现在只发 1 次请求，把带时间戳的真实 URL 写入 :root 的 --random-bg-url，
+      // 所有消费方统一读 background-image: var(--random-bg-url)。
+      // Swup 切页不重建 body，此脚本只跑一次，SPA 导航期间壁纸保持稳定不闪变
       ;(function () {
-        var el = document.querySelector('.site-wallpaper')
-        if (!el) return
-
-        el.classList.add('is-loading')
-
-        var url = 'https://webp.mingcy.cn?v=' + Date.now()
+        var docEl = document.documentElement
         var settled = false
 
-        function apply() {
+        // 成功：写入 CSS 变量 + 加 .bg-ready → 两处图片层同步 0.9s 淡入
+        function apply(url) {
           if (settled) return
           settled = true
-          el.style.backgroundImage = "url('" + url + "')"
-          el.classList.remove('is-loading')
+          docEl.style.setProperty('--random-bg-url', "url('" + url + "')")
+          docEl.classList.add('bg-ready')
         }
 
-        // 解码失败/超时：同样淡入，让 CSS 兜底图自己尝试加载
-        function reveal() {
-          if (!settled) {
-            settled = true
-            el.classList.remove('is-loading')
-          }
+        // 失败 / 超时：不覆盖变量 → 回退 :root 上的 CSS 兜底值（裸接口）；
+        // 仍加 .bg-ready，两处一起淡入、或一起停在占位底色，绝不出现一处成功一处失败
+        function fallback() {
+          if (settled) return
+          settled = true
+          docEl.classList.add('bg-ready')
         }
 
+        var url = 'https://webp.mingcy.cn?v=' + Date.now()
         var img = new Image()
         var decoded = false
         img.addEventListener('load', function () {
           if (decoded) return
           decoded = true
-          // decode() 保证帧已解码，换图不闪；不支持时直接降级
+          // decode() 保证帧已解码，写入变量时不闪；不支持时直接降级
           if (typeof img.decode === 'function') {
-            img.decode().then(apply, apply)
+            img.decode().then(function () {
+              apply(url)
+            }, function () {
+              apply(url)
+            })
           } else {
-            apply()
+            apply(url)
           }
         })
-        img.addEventListener('error', reveal)
+        img.addEventListener('error', fallback)
         img.src = url
 
-        // 8s 兜底：网络极慢时不挂在那儿，保持占位色并放弃本次壁纸
-        setTimeout(function () {
-          if (!settled) {
-            settled = true
-            el.classList.remove('is-loading')
-          }
-        }, 8000)
+        // 8s 兜底：网络极慢时不一直挂占位色
+        setTimeout(fallback, 8000)
       })()
     </script>
 

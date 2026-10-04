@@ -257,6 +257,12 @@ html[data-theme='dark'] .spoiler:hover {
 
 /* ─── Card Glass CSS Variables ─── */
 :root {
+  /* 随机壁纸 URL（一次请求、多处复用）：Layout 内联脚本只发 1 次请求，
+     成功后把带时间戳的真实 URL 写入本变量，全局背景层 / 侧边栏卡片 / 关于页装饰图
+     全部读同一个 --random-bg-url → 浏览器只下载一次，两处画面完全同步。
+     兑底值指向裸接口（无缓存杀手），脚本未跑/失败时仍能显示一张随机图 */
+  --random-bg-url: url('https://webp.mingcy.cn');
+
   --card-glass-bg: rgb(from var(--color-bg-primary) r g b / 0.45);
   --card-glass-border: rgba(0, 0, 0, 0.05);
   --card-glass-shadow: 0 0 0 1px rgba(0, 0, 0, 0.02), 0 4px 20px rgba(0, 0, 0, 0.05);
@@ -284,39 +290,53 @@ html[data-theme='dark'] {
 /* 全局壁纸：webp.mingcy.cn 随机图（每次整页加载换一张，由 Layout 内联脚本注入带时间戳的 URL）
    blur 12px 保留壁纸轮廓又不喧宾夺主；contain:strict 把重绘范围压到最小
 
-   【尺寸策略】background-size:cover + background-position:center center +
-   no-repeat + inset:-48px，**不用 transform:scale**
-   —— scale(1.08) 会在 cover 之外再放大 8%，导致壁纸只显示中间 92%，
-   而 inset:-48px 已足以补偿 blur(12px) 的边缘透明（48 > 12×2），无需再 scale
+   【壁纸尺寸】尺寸/铺满/居中/no-repeat 策略已下沉到下方的图片层规则（.site-wallpaper::before）
 
    【视差】不写 background-attachment:fixed —— 本元素本身 position:fixed 已等效实现
    视口固定；background-attachment:fixed 在 iOS Safari 有重绘卡顿与被忽略的问题
 
-   【加载过渡】.is-loading 时 opacity:0（露出页面主题占位色），Layout 内联脚本用
-   new Image() 预取 + decode()，解码成功后摘掉 .is-loading → 0.9s 淡入，
-   避免直接换 backgroundImage 造成的硬切闪烁 */
+   【加载过渡】图片不在元素本身上，而在 ::before（::after 已被可读性遮罩占用）。
+   解码完成前 opacity:0 → 露出元素的占位底色；Layout 脚本写入 --random-bg-url 后给
+   html 加 .bg-ready → 图片层 0.9s 淡入。侧边栏卡片复用同一条规则（走 ::after）+ 同一
+   变量 + 同一 transition，html.bg-ready 是同一个 class 切换，两处必然同步，不会出现
+   一处已显示、一处还在加载的割裂状态 */
 .site-wallpaper {
   position: fixed;
   inset: -48px; /* 向外扩一圈：模糊后边缘不留白边 */
   z-index: 0;
   pointer-events: none;
-  background-size: cover; /* 自适应铺满：按视口宽高比缩放，不额外放大 */
-  background-position: center center; /* 任意宽高比的图都居中裁切，主体不偏移 */
-  background-repeat: no-repeat; /* 禁止平铺，杜绝窄屏/极端比例下的重复纹理 */
-  opacity: 1;
-  transition: opacity 0.9s ease;
-  /* CSS 兜底图：JS 注入的带时间戳 URL 会覆盖它（inline style 优先级更高），
-     避免脚本未跑时背景全空 */
-  background-image: url('https://webp.mingcy.cn');
+  /* 占位底色：图片解码完成前显示此色，与全局主题一致，不会出现白块 */
   background-color: rgb(var(--color-bg-primary, 242 245 236));
   filter: blur(12px) saturate(1.1);
   contain: strict;
 }
 
-/* 预解码期间隐藏：露出页面的 --color-bg-primary 主题色作占位，
-   解码完成后由脚本摘掉此 class → 走上面的 opacity 0.9s 过渡淡入 */
-.site-wallpaper.is-loading {
+/* 图片层：全局背景走 ::before（::after 是可读性遮罩），侧边栏卡片走 ::after。
+   合并成一条规则 → 同一 --random-bg-url、同一 opacity transition，保证两处同步淡入 */
+.site-wallpaper::before,
+.bg-shared-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--random-bg-url);
+  background-size: cover; /* 自适应铺满：按宽高比缩放，不额外放大 */
+  background-position: center center; /* 任意宽高比居中裁切，主体不偏移 */
+  background-repeat: no-repeat; /* 禁止平铺，杜绝窄屏/极端比例下的重复纹理 */
   opacity: 0;
+  transition: opacity 0.9s ease;
+}
+
+html.bg-ready .site-wallpaper::before,
+html.bg-ready .bg-shared-media::after {
+  opacity: 1;
+}
+
+/* 侧边栏卡片随机图媒体框：与全局背景共用 --random-bg-url，不再单独发请求 */
+.bg-shared-media {
+  position: relative;
+  overflow: hidden;
+  /* 占位底色：与全局背景同族（二级背景色），加载期视觉一致 */
+  background-color: rgb(var(--color-bg-secondary, 233 237 219));
 }
 
 /* 小屏 GPU 预算有限：模糊再减 */
