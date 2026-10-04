@@ -97,7 +97,7 @@ astro-gyoza/
 
 - `cover` + `center` 本就已生效，缺的是：`background-repeat: no-repeat`、**加载淡入（完全没有）**
 - CSS：`background-position: center` → **`center center`**、新增 `background-repeat: no-repeat`、`opacity: 1` + `transition: opacity 0.9s ease`、新增 `.site-wallpaper.is-loading { opacity: 0 }`
-- JS（Layout 内联脚本）重写：先用 `new Image()` 预取 + `img.decode()`，解码成功后才写 `backgroundImage` 并摘掉 `.is-loading` → 0.9s 淡入。`.is-loading` 在首帧绘制前同步加上，所以不会出现「先露兑底图、再换新图」的两次跳变；解码失败 / 8s 超时也摘掉 `.is-loading`（回退 CSS 兑底图/纯色，宁缺不多）
+- JS（Layout 内联脚本）重写：先用 `new Image()` 预取 + `img.decode()`，解码成功后才写 `backgroundImage` 并摘掉 `.is-loading` → 0.9s 淡入。`.is-loading` 在首帧绘制前同步加上，所以不会出现「先露兜底图、再换新图」的两次跳变；解码失败 / 8s 超时也摘掉 `.is-loading`（回退 CSS 兜底图/纯色，宁缺不多）
 - **`background-attachment: fixed` 明确不写**：本元素本身 `position: fixed` 已等效实现视差；`background-attachment: fixed` 在 iOS Safari 有重绘卡顿与被忽略问题（只减不加）
 - 遮罩、`blur(12px)`、明暗 `::after`、`data-swup-ignore-script` + 只跑一次（SPA 期间壁纸稳定）均不动
 
@@ -123,7 +123,9 @@ astro-gyoza/
 - `ProjectList.astro` 加破图兜底：卡片 `aspect-video` 容器加内联 `style="background: linear-gradient(135deg, rgb(var(--color-bg-secondary) / 0.75), rgb(var(--color-bg-primary) / 0.35))"` + `<img onerror="this.remove()">`（放图前不再显示破图图标）。**`onerror` 经构建验证已保留在 dist（9 处）**
 - ⚠️ 坑：`from-secondary/70` 这类渐变类**不会生成** —— 本主题 `secondary` 定义在 `extend.backgroundColor` 而非 `extend.colors`，而 Tailwind 的 `from-*/via-*/to-*` 只读 `colors` 命名空间（只有 `accent` 进去了，所以 `.from-accent/5` 存在、`.from-secondary/70` 不存在）。要渐变只能写内联 `style` 或加到 `colors` 里
 
-**验证：** `astro check` 113 files / 0 errors / 0 warnings / 0 hints；`astro build` **213 pages**（+1 = 新分类页）。dist 核验：`categories/index.html` 102KB 含 21 张卡 + 21 个 `icon-arrow-right` + 「共有 21 个分类，85 篇文章」；导航下拉含首页/项目/工具、`/projects` 3 处、`/tools` 2 处（桌面 + 抽屉 + 页内）；`dist/_astro` 含 `background-repeat:no-repeat` / `background-position:center center` / `.site-wallpaper.is-loading` / `transition:opacity .9s ease` 各 1；内联脚本含 `new Image()` / `img.decode` / `is-loading`；项目页 9 张卡 + e/h/d 三域链接 + `this.remove()` ×9 + 渐变兑底；sitemap 收录 `/categories/`。提交 `61b255a` 已推 `main`。
+**验证：** `astro check` 113 files / 0 errors / 0 warnings / 0 hints；`astro build` **213 pages**（+1 = 新分类页）。dist 核验：`categories/index.html` 102KB 含 21 张卡 + 21 个 `icon-arrow-right` + 「共有 21 个分类，85 篇文章」；导航下拉含首页/项目/工具、`/projects` 3 处、`/tools` 2 处（桌面 + 抽屉 + 页内）；`dist/_astro` 含 `background-repeat:no-repeat` / `background-position:center center` / `.site-wallpaper.is-loading` / `transition:opacity .9s ease` 各 1；内联脚本含 `new Image()` / `img.decode` / `is-loading`；项目页 9 张卡 + e/h/d 三域链接 + `this.remove()` ×9 + 渐变兜底；sitemap 收录 `/categories/`。提交 `61b255a` 已推 `main`。
+
+**⑥ 删掉 `baidu-push` 工作流：** 用户确认不需要。实际它已经是**死工作流** —— 它引用的 `scripts/baidu-changed-urls.cjs` 与 `scripts/baidu_push.py` **两个脚本在仓库里根本不存在**（`ls scripts/` 只有 7 个文件），所以每次命中 path filter 都会直接失败。另外确认过 `cache-hit-check.yml` / `close-inactive-issues.yml` 都没有 `workflow_run` 引用它，可单独删除。现状：`.github/workflows/` 只剩 `cache-hit-check.yml` + `close-inactive-issues.yml`，部署全靠根目录 `vercel.json`（推 `main` 后 Vercel 自动构建）。CLAUDE.md 1432/1440 行对 `baidu_push.py` 的历史描述属于 2026-08/09 旧轮记录，脚本早已被删，未回改历史记录。
 
 **⚠️ 遗留：** ①`ChatGPT` 是 21 个分类里**唯一不是四字**的（7 字符，slug `chatgpt`），影响 2 篇：`ChatGPT-KEY`、`aitiaosuo`。未擅自改内容字段，要归一化成「人工智能」之类四字标签请说；②另有一批语义重复的类（技术分享/技术教程/技术教学、实际生活/生活方面、实用推荐/实用技巧/实用软件、安卓应用/安卓软件）未合并，要并也请说；③三个新项目的封面图待放。
 
