@@ -18,7 +18,7 @@ const { title, description, image, transparentBg = false } = Astro.props
   <Provider pathName={Astro.url.pathname} client:only="react" />
 
   <Navbar />
-  <main class={`relative z-1 pt-16 min-h-main ${transparentBg ? 'page-bg-home' : 'bg-primary/50'}`}>
+  <main class={`relative z-1 pt-16 min-h-main ${transparentBg ? 'page-bg-home' : 'bg-primary/25'}`}>
     <div class="swup-transition-fade">
       <slot />
     </div>

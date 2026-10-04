@@ -22,7 +22,7 @@ const { title, date, summary, cover, category, sticky } = entry.data
   <a href={getPostUrl(entry)} class="flex flex-col">
     {
       cover && (
-        <div class="card-cover-mobile-hidden w-full aspect-[16/9] overflow-hidden">
+        <div class="card-cover-mobile-hidden w-full aspect-[21/9] max-h-[220px] overflow-hidden">
           <img
             class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 will-change-transform select-none"
             src={cover}

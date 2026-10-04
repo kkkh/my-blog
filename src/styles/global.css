@@ -281,33 +281,50 @@ html[data-theme='dark'] {
 }
 
 /* ─── 全局壁纸背景（webp.mingcy.cn 随机壁纸 + 高斯模糊 + 明暗遮罩） ─── */
+/* 全局壁纸：webp.mingcy.cn 随机图（每次整页加载换一张，由 Layout 内联脚本注入带时间戳的 URL）
+   blur 12px 保留壁纸轮廓又不喧宾夺主；contain:strict 把重绘范围压到最小
+
+   【尺寸策略】background-size:cover + inset:-48px，**不用 transform:scale**
+   —— scale(1.08) 会在 cover 之外再放大 8%，导致壁纸只显示中间 92%，
+   而 inset:-48px 已足以补偿 blur(12px) 的边缘透明（48 > 12×2），无需再 scale */
 .site-wallpaper {
   position: fixed;
   inset: -48px; /* 向外扩一圈：模糊后边缘不留白边 */
   z-index: 0;
   pointer-events: none;
-  background-size: cover;
+  background-size: cover; /* 自适应铺满：按视口宽高比缩放，不额外放大 */
   background-position: center;
-  filter: blur(24px) saturate(1.1); /* 高斯模糊：避免影响文字 */
-  transform: scale(1.05); /* 配合 inset 防模糊边缘漏出 */
-  contain: paint;
+  /* CSS 兜底图：JS 注入的带时间戳 URL 会覆盖它（inline style 优先级更高），
+     避免脚本未跑时背景全空 */
+  background-image: url('https://webp.mingcy.cn');
+  background-color: rgb(var(--color-bg-primary, 242 245 236));
+  filter: blur(12px) saturate(1.1);
+  contain: strict;
 }
 
-/* 可读性遮罩：亮色浅色半透 / 暗色深色半透，保证文字对比度 */
+/* 小屏 GPU 预算有限：模糊再减 */
+@media (max-width: 768px) {
+  .site-wallpaper {
+    filter: blur(6px) saturate(1.05);
+  }
+}
+
+/* 可读性遮罩：大幅减弱（原来 50%/65% + main 的 50–75% 叠加后壁纸只剩 12–15% 可见，
+   等于没背景）。现首页壁纸可见约 50%，文章页约 32% */
 .site-wallpaper::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgb(var(--color-bg-primary, 242 245 236) / 0.5);
+  background: rgb(var(--color-bg-primary, 242 245 236) / 0.2);
 }
 
 html[data-theme='dark'] .site-wallpaper::after {
-  background: rgb(var(--color-bg-primary, 16 19 26) / 0.65);
+  background: rgb(var(--color-bg-primary, 16 19 26) / 0.36);
 }
 
 /* Home page background */
 .page-bg-home {
-  background: rgb(var(--color-bg-primary, 242 245 236) / 0.45);
+  background: rgb(var(--color-bg-primary, 242 245 236) / 0.15);
 }
 
 /* ─── Glass Card (Dark 3D Liquid Glass inspired) ─── */

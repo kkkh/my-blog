@@ -77,6 +77,151 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-10-04 16:30 - 壁纸可见度修复 + 导航栏卡顿优化 + 卡片封面缩小
+
+**背景：** 用户反馈三个问题：①导航栏有卡顿；②文章图片比例太大；③全局背景「没有实现」，要求全部换成 `webp.mingcy.cn` 壁纸 + 模糊。
+
+**背景「未实现」的真相（排查结论）：** 壁纸其实一直在渲染（`Layout.astro` 的 `.site-wallpaper` + 时间戳注入），**但四层遮罩叠加让壁纸只剩 12–15% 可见**，等于没有。叠加链路：`.site-wallpaper::after` 50%（暗 65%）× `.page-bg-home` 45% × `main` 的 `bg-primary/50` 或 `/75` → 亮色首页仅 `0.5 × 0.55 × 0.55 ≈ 15%`，文章页仅 `0.5 × 0.25 = 12.5%`。
+
+**修改文件：**
+
+- `src/styles/global.css`（壁纸遮罩大幅减弱 + CSS 兜底图）
+- `src/layouts/PageLayout.astro`、`src/layouts/MarkdownLayout.astro`（main 背景透明度）
+- `src/components/post/PostCard.astro`（封面比例）
+- `src/components/header/Navbar.astro`（性能）
+
+**修改内容：**
+
+1. **壁纸遮罩减弱**（可见度从 12–15% 提升到 32–60%）：
+   - `.site-wallpaper::after`：50% → **20%**（暗 65% → **36%**）
+   - `.page-bg-home`：45% → **15%**
+   - PageLayout main：`bg-primary/50` → **`/25`**
+   - MarkdownLayout main：`bg-primary/75` → **`/60`**（文章页正文多，保留较高遮罩保证可读）
+   - `blur(14px)` → **`blur(12px) saturate(1.1)`**（保留壁纸轮廓），移动端 8px → **6px**
+   - **新增 CSS 兜底图**：`.site-wallpaper` 直接写 `background-image:url('https://webp.mingcy.cn')`，JS 注入的带时间戳 URL 用 inline style 覆盖它 —— 脚本未跑时背景不全空
+   - 最终可见度：首页约 **51%**、普通页约 **60%**、文章页约 **32%**
+2. **壁纸自适应尺寸（去掉额外放大）**：原 `transform: scale(1.08)` 会在 `background-size:cover` 之外再放大 8%，叠加后壁纸只显示中间约 92%（用户反馈「比例太大只显示一部分」）。删除 `scale(1.08)` 与配套的 `will-change:transform`，只保留 `cover` + `inset:-48px` —— 后者已足以补偿 `blur(12px)` 的边缘透明（48 > 12×2），无需再 scale。壁纸现按视口宽高比自适应铺满，无额外裁剪
+3. **导航栏卡顿**（根因：胶囊 `backdrop-filter: blur(18px)` 在滚动时**每帧重采样**背景，两颗胶囊 = 两处持续合成成本）：
+   - 静止时 blur 18px → **12px saturate(150%)**（小区域上模糊半径超过内容时收益递减，但重采样成本线性上升）
+   - 投影减弱：`0 16px 40px -24px #00000075` → **`0 12px 30px -24px #0006`**（#00000066 的 4 位 hex 简写）
+   - **滚动期间彻底拿掉毛玻璃**：`body.is-scrolling` 时 `backdrop-filter:none` + 把 `--navbar-glass-bg` 提到 **90% 不透明度**补偿视觉（原来只降到 `blur(8px)`，仍在每帧重算）
+   - 下拉菜单 blur 18px → 12px；删掉 `.navbar` 自身无意义的 `transition: background-color/box-shadow`（navbar 无背景无阴影）
+4. **卡片封面缩小**（`PostCard.astro`）：`aspect-[16/9]` → **`aspect-[21/9] max-h-[220px]`**。宽 780px 的卡片高度从 439px 降到 220px（矮 50%），窄卡片按 21:9 自然比例，图片 `object-cover` 不变
+
+**关键机制说明：**
+
+- 壁纸本身**不是**滚动成本：`.site-wallpaper` 是 `position:fixed`（滚动时位置不变）+ `contain:strict` + `will-change:transform`，`filter:blur()` 只算一次
+- 真正的滚动成本是 **`backdrop-filter`**（毛玻璃要采样下方内容，内容在动就每帧重算）。壁纸用的是 `filter`（只作用于自身）不是 `backdrop-filter`，所以壁纸不拖帧
+- glide-pill 的 rAF 循环在弹簧收敛后直接停止（`state.frame=0`），非 hover 时零成本
+- `body.is-scrolling` 由 `Layout.astro` 的常驻脚本设置（rAF 节流 + 120ms 停止计时器），导航栏降级规则在 Navbar.astro 的 scoped CSS 里通过 `body.is-scrolling #site-navbar` 消费
+- CSS 4 位 hex `#0006` = `#000066`（每字符×17），压缩器对 8 位 hex 的合法简写
+
+**验证：** `astro check` 112 files / 0 errors / 0 warnings / 0 hints；`astro build` 212 pages。dist 核验：CSS 兜底 URL 1 处、遮罩 `/ .2` 与 `/ .36` 均在、`page-bg-home / .15`、`bg-primary / .25` 12 处、`/ .6` 11 处、`aspect-ratio:21` 1 处、`max-height:220px` 2 处、旧 `aspect-[16/9]` 残留 0；导航栏 `blur(18px)` 残留 **0**、`blur(12px) saturate(150%)` 4 处、`backdrop-filter:none` 6 处、玻璃提到 90% 1 处。
+
+**注意：**
+
+- ①壁纸遮罩减弱后，`card-glass` 的 `backdrop-filter` 会让卡片显示模糊的壁纸（玻璃质感更强），这是期望效果
+- ②若某张壁纸本身对比度极高（纯白/纯黑），亮色模式下正文可能对比不足 —— 此时把 `.site-wallpaper::after` 从 20% 提到 28% 即可（文章页的 60% 遮罩不受影响）
+- ③卡片 `max-h-[220px]` 只在宽卡片生效（窄卡片 21:9 自然高度更低）；若想全平台统一固定高度可改用 `h-56`
+- ④壁纸遮罩与 `main` 背景叠加大概按 `壁纸 × Π(1-α)` 衰减，调参时可先算目标可见度再反推每一层
+
+**背景：** 要求参考 https://blog.liushen.fun/ 复刻导航栏：滑动特效、二级菜单、「MingCY 与导航栏分开」的效果，并随浅深主题随心切换。
+
+**参考站源码定位（可复用）：**
+
+- 导航 HTML 内联在首页；导航 CSS 在 `/_astro/Footer.*.css`（约 212KB 的 bundle 里，不是 index.css）
+- glide-pill 的 runtime 在懒加载 chunk `/_astro/header.*.js`（由 `requestIdleCallback` 引入，且仅在 `(hover:hover) and (pointer:fine)` 时加载）
+- 参考站是 Astro 7 + `data-theme` CSS 变量体系，全部颜色走 `var(--accent)` / `var(--foreground)` / `var(--background)` / `var(--border)`，无任何硬编码
+
+**修改文件：**
+
+- `src/components/header/Navbar.astro`（整体重写，约 1000 行）
+- `src/components/hero/Hero.astro`（仅容器宽度同步对齐）
+- `src/styles/global.css`（删除上一轮加的 `body.is-scrolling #site-navbar` 胶囊模糊规则 —— navbar 自身不再承载 backdrop-filter）
+
+**四项设计语言（1:1 对照参考站）：**
+
+1. **两个独立浮起胶囊**：Logo 单独一个胶囊（`.navbar__float-left`，z-index 30），导航菜单 + 功能按钮单独一个胶囊（`.navbar__float-right`）。默认态 `background:0 0` + `border:1px solid #0000` + `::before` 玻璃层 `opacity:0` → **完全透明**；滚动时（`scrollY > 15`）玻璃层浮现 `opacity:1` + 边框 `color-mix(border 24%)` + 双层投影 + 整颗下移 `translateY(.35rem)`。玻璃层是 `::before` + `isolation:isolate` + `z-index:-1` + `backdrop-filter:blur(18px) saturate(160%)`，背景 `color-mix(bg-primary 72%, transparent)`（`@supports color-mix` 降级为实色）
+2. **滑动特效**：`.glide-pill` 不是 CSS transition，而是 `requestAnimationFrame` 驱动的**弹簧物理** —— stiffness 7000 / damping 96 / 位置容差 0.1px / 速度容差 0.6 / 隐藏态 `scale(0.92)` / 最小帧间隔 0.002s，逐帧写 `translate3d(x,y,0) scale(s)` + `width` + `height`，按**中心点**定位并按速度方向额外拉出 `min(|v|*dt, 10)` 的拖尾。收敛后归零速度直接吸附到目标。hover 用 `pointerover` / `pointerleave`，键盘用 `focusin` / `focusout`（检查 `relatedTarget` 是否仍在容器内）；`resize` / `scroll` 时重新量测已锁定项。父 track 与子 track（下拉内部）互不干扰：`closest('[data-glide-track]') !== container` 直接排除
+3. **二级菜单**：胶囊形玻璃下拉（`border-radius:999px` + `width:max-content` + `max-width:min(92vw,820px)` + `backdrop-filter:blur(18px)` + `box-shadow:0 16px 36px -18px`），`hover` / `focus-within` 展开，带 `::before` 顶部悬浮间隙（0.5rem）避免鼠标离开触发器时立刻消失。**下拉内部同样内嵌一枚 glide-pill**，展开项 hover 时在胶囊内滑动。当前页标识从上一版的「背景高亮块」改为参考站的**波浪下划线**（`text-decoration:underline wavy .08em` + `text-underline-offset:.42em` + `::after{content:none}`）
+4. **浅深随心切换**：全部颜色改为 CSS 变量 —— 文字 `rgb(var(--color-text-primary))`、hover/accent `rgb(var(--color-accent))`、边框 `rgb(var(--color-border-primary))`、玻璃底 `color-mix(rgb(var(--color-bg-primary)) 72%, transparent)`、分隔线 `rgb(var(--color-border-primary) / .3)`、移动抽屉底色/边框/标题同样变量化。**顺带解决了上一轮遗留的「深灰 Logo vs 白色菜单文字」不一致**（上一轮菜单是硬编码 `#e2e8f0`）。唯一保留的硬编码是 Logo SVG 自身的 `fill:rgb(51,51,51)` + `dark:invert`（Logo 是固定色 SVG，与菜单文字无关）
+
+**其他细节：**
+
+- 容器宽度：`.navbar__layout` = `max-width:950px`，`@media(min-width:1280px)` → `1100px`（参考站 `app-layout`）。Hero 容器同步从 1024px 改为 950/1100 以保证左边缘对齐
+- 断点从 768px 改为 **1024px**（参考站 `lg`）：7 个菜单项 + 分隔线 + 两个图标按钮在 769–1023px 区间确实放不下
+- 分隔线：菜单末尾 `1px × 1rem` 竖线（参考站分隔符）
+- 图标按钮：`2rem × 2rem` 圆形，`border:1px solid color-mix(border 18%)`，hover 时 accent 色 + accent 8% 底色
+- 搜索按钮保留（本地无 Pagefind 搜索面板，仍是装饰），**未新增主题切换按钮**（「随心切换」按样式自动跟随理解；footer 已有 ThemeSwitch）
+- 分组触发器改用 `<button aria-haspopup>`，**去掉了上一版的 caret 箭头**（参考站 trigger 只有文字）
+
+**关键决策（避免全站布局回归）：**
+
+定位**仍用 absolute（默认态）/ fixed（滚动态）**，不改成参考站的 `sticky`。理由：改 sticky 需要移除 `main` 的 `pt-16`（影响 PageLayout + MarkdownLayout 全站布局），而「两个胶囊浮现」的视觉效果完全由胶囊自身承载，与定位方式无关。副作用是滚动态胶囊底部（约 70px）与内容起点（pt-16 = 64px）重叠约 6–7px —— 胶囊是圆角玻璃，重叠部分自然被模糊显示，视觉可接受。**未改 `main` 的 `pt-16`。**
+
+**验证：**
+
+- `astro check` 112 files / **0 errors / 0 warnings / 0 hints**
+- `astro build` **212 pages** Complete
+- 内联脚本 `node --check` 语法通过；脚本原样输出（`is:inline` 未参与打包），参数可核：`STIFFNESS`/`DAMPING`/`TOL_POS`/`HIDDEN_SCALE`/`MIN_FRAME` 各在 HTML 中 2–3 次
+- dist 结构核验：`navbar__float-left`/`-right` 各 1、`data-glide-pill` 4（3 枚 pill + 1 处 JS 常量）、`data-glide-track` 4（3 个 track + JS 常量）、`navbar__dropdown` 8、`navbar__sep-line` 1、`nav-active` 2（首页命中「导航」，桌面 + 移动抽屉各一）
+- dist CSS 核验：`isolation:isolate` 8 处、`translateY(.35rem)` 1、`border-radius:999px` 16、`backdrop-filter:blur(18px)` 4、`color-mix` 64、`underline wavy` 8、`max-width:950px` 2 / `1100px` 3、`min-height:2.75rem` 1
+
+**注意：**
+
+- ①`data-swup-ignore-script` + `window.__gyozaNavbarInit` 幂等守卫**必须保留**：不加则 SwupScriptsPlugin 每切一页克隆重跑、监听器无限累加。glide 的监听器走 `AbortController`，`rescan` 时先 `abort()` 再**重新赋值** `ac`（不能新建局部变量，否则第二次 rescan 无法撤销第一批监听器）
+- ②`bootGlide` 惰性执行（`requestIdleCallback`），且不满足 `(hover:hover) and (pointer:fine)` 或 `prefers-reduced-motion` 时直接不初始化 —— 触屏无 hover，启用反而干扰。此时 pill 永久 `opacity:0`（CSS 默认态），当前页标识由 CSS 波浪下划线承担
+- ③滚动期间胶囊玻璃从 `blur(18px) saturate(160%)` 降到 `blur(8px) saturate(120%)` 并关闭 transition（`body.is-scrolling` 触发）—— `backdrop-filter` 每帧重算是滚动掉帧主因
+- ④分组展开后，鼠标移入下拉会触发父 track 的 `pointerleave` → 父 pill 淡出，这是期望行为（与参考站一致）
+- ⑤Logo SVG 的 `transform-origin:342px 130px` 是 SVG 用户坐标，依赖内联 SVG 的 CSS transform 在 viewBox 坐标系生效（不能用 `<img>` 引用）
+
+**背景：** 要求以 `F:\桌面\study\opencode\astro\astro-devosfera`（茗辰原迁移副本，最新提交 `9439aed`）为范本做三件事：①首页「最新文章」以上的个人形象展示区与参考站做到一模一样；②导航栏 Ming{·}CY 采用参考站同位置同效果；③全局背景参照参考站使用 `https://webp.mingcy.cn` 模糊背景。约束：写法按本主题体系，保证流畅度优先。
+
+**修改文件：**
+
+- `src/components/hero/Hero.astro`（重写）
+- `src/components/header/Navbar.astro`（Logo + 布局）
+- `src/styles/global.css`（背景参数 + 滚动降级）
+
+**① Hero（结构 1:1 照搬参考站 index.astro，文案走本地 config）：**
+
+- 顶部终端提示符徽章：`ping` 脉冲点（`animate-ping bg-accent`）+ accent 前缀 `~` + 路径 `/mingcy` + 40% 透明度后缀 `$`，圆角胶囊 `border-primary/40 bg-secondary/20 font-mono`
+- 超大标题：`hero.name`（茗辰原）+ RSS 图标链接（`/rss.xml`，`stroke-accent stroke-3 opacity-40 hover:opacity-100`）；`.hero-title` shimmer 流光渐变（`250% auto` background-size + 6s 流动，accent↔text-primary 两端插值用 `color-mix(in oklab, ... 50%, ...)`）
+- 描述：`{hero.description} | {hero.bio}记录编程、网络安全与生活的点滴。`
+- `Written by` + 作者虚线下划线链接（`decoration-dashed underline-offset-4 hover:text-accent`）+ 分隔线 + `SocialList`（保留本地 React 组件）
+- 右侧头像：`.hero-avatar-ring` 用 `conic-gradient(from 0deg, transparent 0deg 200deg, accent 60% 300deg, transparent)` + 9s 旋转 + hover 由 0.7 → 1；头像 `size-48 xl:size-64`（参考站 192/256px）
+- 容器从 `max-w-[1200px]` 改为 `max-w-[1024px]`，与导航栏、下方 home-grid 的左对齐线一致
+- 移除旧版 `overflow-hidden` / `lg:-mt-16 lg:h-dvh` 沉浸式顶格、底部一言、下拉箭头、`Highlight` 组件（参考站均无；`Highlight.astro` 文件保留，其它 7 处仍在使用）
+
+**② Navbar（Logo 同款 + 内容收敛居中）：**
+
+- Logo 由纯文本 `Ming{·}CY` 换为参考站 `devosfera.svg` 的内联 SVG（Ming `rgb(51,51,51)` + 圆球 `rgb(167,90,90)` + CY，`viewBox="0 0 1000 250"`，`matrix(1.112155,...)` 变换矩阵与 `logo-text-left/-sphere/-right` 三段 class 完全照搬）；字体链改为 `'JetBrains Mono','Fira Code','Cascadia Code',monospace`（本机无 Cascadia Code，落到 JetBrains Mono，与 `tailwind.config` 的 `font-mono` 同源）
+- 内联 SVG 而非 `<img src={Logo}>`：本主题 `astro.config.js` 未启用 `assets.svg.defaultExport`，`<img>` 无法穿透 SVG 内部 class，hover 动画会失效
+- Logo hover 动效按参考站 `Header.astro` 逐条照搬：左右字块 `translateX(±5px)` + 字重阴影，圆球 `drop-shadow(8px rgba(167,90,90,.5))` + `logo-sphere-wiggle` 0.6s 弹性 keyframes（`transform-origin: 342px 130px`），`prefers-reduced-motion` 降级
+- **新增 `.navbar__wrap`**：`max-width: 1024px; margin: 0 auto`（对应参考站 `app-layout = max-w-4xl xl:max-w-5xl`），原 `display:flex / justify-content: space-between` 从 `.navbar` 下沉到 wrap —— 这是「导航栏偏向左右」的根因（原未滚动态全宽 + `margin-left:auto` 把 Logo/菜单顶到两端）
+- 滚动态胶囊 `max-width: 1200px` → `1024px`，与 wrap 同宽，胶囊与内容严格居中
+
+**③ 全局背景（参数对齐参考站 `SITE.background`）：**
+
+- `.site-wallpaper`：`blur(24px) saturate(1.1)` → **`blur(14px) saturate(1.05)`**、`scale(1.05)` → **`scale(1.08)`**、`contain: paint` → **`contain: strict`**，新增 `will-change: transform`
+- 新增移动端降级 `@media (max-width: 768px) { filter: blur(8px) saturate(1) }`（参考站同款，小屏 GPU 预算有限）
+- `body.is-scrolling #site-navbar` 新增滚动时 `backdrop-filter: blur(6px)` + `transition: none`（参考站对 header 同款；本地 `.navbar` 有 `transition: all .3s`，不加 `transition:none` 会在滚动中反复回跳）
+- **遮罩保持 `.5`/`.65` 未动**：参考站遮罩 68/76% 是配它的主容器无额外底色；本地还有 `.page-bg-home` 45% 半透明层，若同步拉到 68/76 会叠加到约 82% 导致壁纸不可见。要更接近参考站观感，需同时减弱 `.page-bg-home`（未做，需确认）
+- 背景图源与加载机制保留本地方案：`?v=Date.now()` 时间戳每次整页加载拉新随机壁纸（参考站是裸 URL `<img>`）
+
+**类名映射（写法按本主题）：** `font-firacode`→`font-mono`；`border-border/40`→`border-primary/40`；`bg-muted/20`→`bg-secondary/20`；`bg-foreground/5`→`bg-secondary/5`；参考站 `var(--accent)/var(--foreground)`→`rgb(var(--color-accent))/rgb(var(--color-text-primary))`；`text-6xl/text-7xl`→`text-[3.75rem]/text-[4.5rem]`（本主题 `tailwind.config.ts` 的 `fontSize` 只定义到 `5xl`，直接写 `text-6xl` 会静默不生成）
+
+**验证：** `pnpm exec astro check` 112 files / 0 errors / 0 warnings / 0 hints；`pnpm exec astro build` 212 pages Complete。dist 核验（`dist/index.html`）：`hero-section`×1、`hero-title`×3、`hero-avatar-ring`×6、`navbar__wrap`×1、`logo-svg`/`logo-text-left`/`logo-sphere`/`logo-text-right` 各×1、`Written by`×1、`/rss.xml`×3、`/mingcy`×9；Hero 的 shimmer 与光环 keyframes 内联在 HTML 的 7 个 `<style>` 块内；`_astro/*.css` 含 `conic-gradient`×6、`logo-sphere-wiggle`×2、`blur(14px)`/`saturate(1.05)`/`scale(1.08)` 各×1、`blur(8px)`×7、`contain:strict`×1、`is-scrolling #site-navbar`×1、`max-width:1024px`×4、`dark\:invert`×1、`border-primary\/40`/`bg-secondary\/20` 各×1。
+
+**注意：**
+
+- ①**未改文件**：`tailwind.config.ts`、`src/config.json`、`astro.config.js`、`package.json`（未引入依赖、未改构建配置）；`Highlight.astro` 未删除（仍被 ProfileCard 等 7 处引用）
+- ②`src/config.json` 没有终端提示符与 profile 字段，故 `PROMPT_PREFIX/PROMPT_PATH/PROMPT_SUFFIX` 硬编码在 `Hero.astro` 顶部三个常量，`profileUrl` 取 `hero.socials[0].url`（GitHub）；要配置化再改 config
+- ③**既有的对比度问题未处理**：导航菜单文字仍是白色（`#e2e8f0`），而新 Logo 是参考站的深灰 `rgb(51,51,51)`（暗色模式 `dark:invert` 反色），两者在亮色模式浅绿壁纸上的观感不一致 —— 参考站菜单用 `var(--foreground)` 深色文字是因为其背景为浅色；若要一致需把 `.navbar__link/.navbar__icon` 改为文字色变量，需确认后动手
+- ④Hero 底部一言（`hero.yiyan`）已随参考站结构移除，该文案在右侧边栏 `YiyanCard` 仍有展示
+- ⑤Logo SVG 里 `transform-origin` 是 SVG 用户坐标（`342px 130px`），依赖内联 SVG 的 CSS transform 在 viewBox 坐标系下生效，与参考站行为一致
+- ⑥背景 `contain: strict` 对 `position:fixed + inset` 元素是安全的（layout containment 不改变定位）；若某浏览器出现背景位置异常，回退到 `contain: paint` 即可
+
 ### 2026-10-04 - 导航栏重构：全站菜单接入两个下拉分组 + 移动端汉堡抽屉 + Logo 改 Ming{·}CY
 
 **背景：** 用户提供两套适配 Pi 的精准提示词（UI 效果图 / Astro 组件），要求导航栏覆盖全站所有页面：不只友链，还有相册、工具、项目、归档、标签、关于；同时按提示词把品牌改为 `Ming{·}CY`、花括号青绿 `#2dd4bf`（teal-400）、移动端折叠为汉堡菜单。用户确认菜单结构后执行。
