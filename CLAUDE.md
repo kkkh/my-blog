@@ -77,6 +77,58 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-10-04 19:45 - Logo 胶囊紧凑化 + 壁纸预解码淡入 + 分类总览页 + 3 个新项目
+
+**背景：** 用户四点：①导航左侧 Ming·CY 胶囊胖肿松散；②随机壁纸尺寸/比例不一导致显示不全、裁切偏移；③把「项目、工具」挪进「导航」下拉分组，并新增 e/h/d 三个子域项目；④`/categories` 页不存在（但 `/categories/网站建站` 正常），补上并显示四字标签。
+
+**修改文件：** `src/components/header/Navbar.astro`、`src/styles/global.css`、`src/layouts/Layout.astro`、`src/data/projects.ts`、`src/components/ProjectList.astro`、`src/pages/sitemap.xml.ts`；新建 `src/pages/categories/index.astro`
+
+**① Logo 胶囊紧凑化（根因是 viewBox 里 32% 死空间）：**
+
+- SVG viewBox `0 0 1000 250` → **`0 0 800 250`**：内容实际只到 x≈680（Ming@0 + CY@500，JetBrains Mono 0.6em 步进），右侧 32% 是纯空白，是胶囊宽度的主要浪费源
+- `.logo-svg` `width: 9.375rem`(150px) → **`7rem`**(112px)，裁完 viewBox 后字形高仍 ≈20px 不变
+- `.navbar__float-left` 新增紧凑覆盖（同选择器级、声明在后压过 `.navbar__float`）：`padding 0.28rem 0.35rem` → **`0.1rem 0.55rem`**、`border-radius 999px` → **`16px`**（全圆胖胶囊 → 修长圆角胶囊）；`min-height: 2.75rem` **刻意保持**与右胶囊视觉重心一致
+- 效果：**157×46.5px → 130×44px**（窄 17%、矮 5%）
+- **顺带修了一个隐藏 bug**：SVG 内 CSS transform 走 user 单位，viewBox 800 渲到 112px 时 1 unit = 0.14 CSS px，原 `translateX(-5px)` 实际只渲 0.7px（hover 字块分离效果几乎不可见）→ 补到 **`-36px`/`36px`**，实际 ≈5 CSS px
+- Ming/CY 加 `letter-spacing: -0.04em`，圆球 `-30px` 保留
+- **不动**：右胶囊默认值与 glide-pill 几何、`transform-origin: 342px 130px`（user 单位，不受 viewBox 宽度裁剪影响）、`dark:invert`、圆球摇摆 keyframes、reduced-motion 降级
+
+**② 壁纸加载过渡（真正的闪烁根因，不是 cover）：**
+
+- `cover` + `center` 本就已生效，缺的是：`background-repeat: no-repeat`、**加载淡入（完全没有）**
+- CSS：`background-position: center` → **`center center`**、新增 `background-repeat: no-repeat`、`opacity: 1` + `transition: opacity 0.9s ease`、新增 `.site-wallpaper.is-loading { opacity: 0 }`
+- JS（Layout 内联脚本）重写：先用 `new Image()` 预取 + `img.decode()`，解码成功后才写 `backgroundImage` 并摘掉 `.is-loading` → 0.9s 淡入。`.is-loading` 在首帧绘制前同步加上，所以不会出现「先露兑底图、再换新图」的两次跳变；解码失败 / 8s 超时也摘掉 `.is-loading`（回退 CSS 兑底图/纯色，宁缺不多）
+- **`background-attachment: fixed` 明确不写**：本元素本身 `position: fixed` 已等效实现视差；`background-attachment: fixed` 在 iOS Safari 有重绘卡顿与被忽略问题（只减不加）
+- 遮罩、`blur(12px)`、明暗 `::after`、`data-swup-ignore-script` + 只跑一次（SPA 期间壁纸稳定）均不动
+
+**③ 导航分组：** `NAV_LINKS` 把「导航」从扁平项改为分组 `{label:'导航', items:[首页/、项目//projects、工具//tools]}`，删掉原来的两个顶级扁平项。移动端汉堡抽屉本就走 `NAV_LINKS` 递归 + `navbar__drawer-group` 分支，无需改代码自动适配。
+
+**④ 分类总览页（根因：只有 `[category].astro` 没有 `index.astro`）：**
+
+- 新建 `src/pages/categories/index.astro`：`getAllCategories()` 取全部分类，按**文章数降序**（同数按名称 `localeCompare('zh')`）排序；`grid-cols-2 sm:3 lg:4` 卡片墙，复用 `.cloud-badge` + `hover:glow-border`，每张卡显示图标 + 篇数 + 四字标签名 + hover 箭头；头部统计「N 个分类，M 篇文章」
+- 实测：**21 个分类、85 篇文章**
+- `sitemap.xml.ts` 补 `add('/categories/', '0.5')`（原本只收单分类页）
+- ⚠️ 坑：写了 `text-tertiary` 才发现**这个类根本不存在**（`tailwind.config.ts` 的 `extend.textColor` 只有 primary/secondary，`TagList.astro` 里用的 `text-tertiary` 是死类静默不生成）→ 统一用 `text-secondary`
+
+**⑤ 新增 3 个项目**（元数据实测抓取，非猜）：
+
+| id  | title | 域名          | 描述                                                                                    | codeUrl                                   |
+| --- | ----- | ------------- | --------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 7   | 笔记  | `e.mingcy.cn` | EdgeEver：基于 Cloudflare 全家桶自托管的开源印象笔记                                    | 空                                        |
+| 8   | 集合  | `h.mingcy.cn` | CF-Navs：部署在 Cloudflare Workers 上的轻量个人导航面板                                 | 空                                        |
+| 9   | 加速  | `d.mingcy.cn` | EdgeMirror：边缘镜像网关，加速源码、包仓库、模型库、Docker 镜像、Linux 镜像与运行时下载 | `https://github.com/tianrking/EdgeMirror` |
+
+- 来源：e 的 `meta description`；h 的 HTML 无 description，从 `manifest.webmanifest` 取；d 的 `meta description`（英文原文译中）。**GitHub API 本环境不可达（curl http_code 000），e/h 仓库地址不猜，留空**（d 的仓库地址是从页面源码 grep 到的 `github.com/tianrking/EdgeMirror`）
+- 图片占位：`image/edgeever.webp` / `image/cfnavs.webp` / `image/edgemirror.webp`（待用户放 `public/image/`）
+- `ProjectList.astro` 加破图兜底：卡片 `aspect-video` 容器加内联 `style="background: linear-gradient(135deg, rgb(var(--color-bg-secondary) / 0.75), rgb(var(--color-bg-primary) / 0.35))"` + `<img onerror="this.remove()">`（放图前不再显示破图图标）。**`onerror` 经构建验证已保留在 dist（9 处）**
+- ⚠️ 坑：`from-secondary/70` 这类渐变类**不会生成** —— 本主题 `secondary` 定义在 `extend.backgroundColor` 而非 `extend.colors`，而 Tailwind 的 `from-*/via-*/to-*` 只读 `colors` 命名空间（只有 `accent` 进去了，所以 `.from-accent/5` 存在、`.from-secondary/70` 不存在）。要渐变只能写内联 `style` 或加到 `colors` 里
+
+**验证：** `astro check` 113 files / 0 errors / 0 warnings / 0 hints；`astro build` **213 pages**（+1 = 新分类页）。dist 核验：`categories/index.html` 102KB 含 21 张卡 + 21 个 `icon-arrow-right` + 「共有 21 个分类，85 篇文章」；导航下拉含首页/项目/工具、`/projects` 3 处、`/tools` 2 处（桌面 + 抽屉 + 页内）；`dist/_astro` 含 `background-repeat:no-repeat` / `background-position:center center` / `.site-wallpaper.is-loading` / `transition:opacity .9s ease` 各 1；内联脚本含 `new Image()` / `img.decode` / `is-loading`；项目页 9 张卡 + e/h/d 三域链接 + `this.remove()` ×9 + 渐变兑底；sitemap 收录 `/categories/`。提交 `61b255a` 已推 `main`。
+
+**⚠️ 遗留：** ①`ChatGPT` 是 21 个分类里**唯一不是四字**的（7 字符，slug `chatgpt`），影响 2 篇：`ChatGPT-KEY`、`aitiaosuo`。未擅自改内容字段，要归一化成「人工智能」之类四字标签请说；②另有一批语义重复的类（技术分享/技术教程/技术教学、实际生活/生活方面、实用推荐/实用技巧/实用软件、安卓应用/安卓软件）未合并，要并也请说；③三个新项目的封面图待放。
+
+---
+
 ### 2026-10-04 16:30 - 壁纸可见度修复 + 导航栏卡顿优化 + 卡片封面缩小
 
 **背景：** 用户反馈三个问题：①导航栏有卡顿；②文章图片比例太大；③全局背景「没有实现」，要求全部换成 `webp.mingcy.cn` 壁纸 + 模糊。
