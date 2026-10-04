@@ -284,22 +284,39 @@ html[data-theme='dark'] {
 /* 全局壁纸：webp.mingcy.cn 随机图（每次整页加载换一张，由 Layout 内联脚本注入带时间戳的 URL）
    blur 12px 保留壁纸轮廓又不喧宾夺主；contain:strict 把重绘范围压到最小
 
-   【尺寸策略】background-size:cover + inset:-48px，**不用 transform:scale**
+   【尺寸策略】background-size:cover + background-position:center center +
+   no-repeat + inset:-48px，**不用 transform:scale**
    —— scale(1.08) 会在 cover 之外再放大 8%，导致壁纸只显示中间 92%，
-   而 inset:-48px 已足以补偿 blur(12px) 的边缘透明（48 > 12×2），无需再 scale */
+   而 inset:-48px 已足以补偿 blur(12px) 的边缘透明（48 > 12×2），无需再 scale
+
+   【视差】不写 background-attachment:fixed —— 本元素本身 position:fixed 已等效实现
+   视口固定；background-attachment:fixed 在 iOS Safari 有重绘卡顿与被忽略的问题
+
+   【加载过渡】.is-loading 时 opacity:0（露出页面主题占位色），Layout 内联脚本用
+   new Image() 预取 + decode()，解码成功后摘掉 .is-loading → 0.9s 淡入，
+   避免直接换 backgroundImage 造成的硬切闪烁 */
 .site-wallpaper {
   position: fixed;
   inset: -48px; /* 向外扩一圈：模糊后边缘不留白边 */
   z-index: 0;
   pointer-events: none;
   background-size: cover; /* 自适应铺满：按视口宽高比缩放，不额外放大 */
-  background-position: center;
+  background-position: center center; /* 任意宽高比的图都居中裁切，主体不偏移 */
+  background-repeat: no-repeat; /* 禁止平铺，杜绝窄屏/极端比例下的重复纹理 */
+  opacity: 1;
+  transition: opacity 0.9s ease;
   /* CSS 兜底图：JS 注入的带时间戳 URL 会覆盖它（inline style 优先级更高），
      避免脚本未跑时背景全空 */
   background-image: url('https://webp.mingcy.cn');
   background-color: rgb(var(--color-bg-primary, 242 245 236));
   filter: blur(12px) saturate(1.1);
   contain: strict;
+}
+
+/* 预解码期间隐藏：露出页面的 --color-bg-primary 主题色作占位，
+   解码完成后由脚本摘掉此 class → 走上面的 opacity 0.9s 过渡淡入 */
+.site-wallpaper.is-loading {
+  opacity: 0;
 }
 
 /* 小屏 GPU 预算有限：模糊再减 */

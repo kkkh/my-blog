@@ -55,12 +55,57 @@ const { title, description, image } = Astro.props
     <script is:inline data-swup-ignore-script>
       // 壁纸 URL 带时间戳缓存杀手：每次整页加载都从 webp.mingcy.cn 拉取一张新随机壁纸；
       // Swup 切页不重建 body，此脚本只跑一次，SPA 导航期间壁纸保持稳定不闪变
+      //
+      // 【加载过渡】先用 new Image() 预取 + decode()，解码成功后才写入 backgroundImage
+      // 并摘掉 .is-loading（走 CSS 的 0.9s 淡入）。同步加 .is-loading 在首帧绘制前，
+      // 所以不会出现「先露出兜底图、再换成新图」的两次跳变。
+      // 解码失败时也只摘掉 .is-loading，退回 CSS 兜底图/纯色，宁缺不多。
       ;(function () {
         var el = document.querySelector('.site-wallpaper')
-        if (el) {
-          el.style.backgroundImage =
-            "url('https://webp.mingcy.cn?v=' + Date.now())"
+        if (!el) return
+
+        el.classList.add('is-loading')
+
+        var url = 'https://webp.mingcy.cn?v=' + Date.now()
+        var settled = false
+
+        function apply() {
+          if (settled) return
+          settled = true
+          el.style.backgroundImage = "url('" + url + "')"
+          el.classList.remove('is-loading')
         }
+
+        // 解码失败/超时：同样淡入，让 CSS 兜底图自己尝试加载
+        function reveal() {
+          if (!settled) {
+            settled = true
+            el.classList.remove('is-loading')
+          }
+        }
+
+        var img = new Image()
+        var decoded = false
+        img.addEventListener('load', function () {
+          if (decoded) return
+          decoded = true
+          // decode() 保证帧已解码，换图不闪；不支持时直接降级
+          if (typeof img.decode === 'function') {
+            img.decode().then(apply, apply)
+          } else {
+            apply()
+          }
+        })
+        img.addEventListener('error', reveal)
+        img.src = url
+
+        // 8s 兜底：网络极慢时不挂在那儿，保持占位色并放弃本次壁纸
+        setTimeout(function () {
+          if (!settled) {
+            settled = true
+            el.classList.remove('is-loading')
+          }
+        }, 8000)
       })()
     </script>
 

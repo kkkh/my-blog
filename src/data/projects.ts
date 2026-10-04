@@ -63,4 +63,32 @@ export const projects: Project[] = [
     demoUrl: 'https://github.com/rumian0',
     codeUrl: 'https://github.com/rumian0',
   },
+  {
+    id: 7,
+    title: '笔记',
+    description: 'EdgeEver：基于 Cloudflare 全家桶自托管的开源印象笔记',
+    image: 'image/edgeever.webp',
+    tags: ['笔记', 'Cloudflare'],
+    demoUrl: 'https://e.mingcy.cn',
+    codeUrl: '',
+  },
+  {
+    id: 8,
+    title: '集合',
+    description: 'CF-Navs：部署在 Cloudflare Workers 上的轻量个人导航面板',
+    image: 'image/cfnavs.webp',
+    tags: ['导航', 'Workers'],
+    demoUrl: 'https://h.mingcy.cn',
+    codeUrl: '',
+  },
+  {
+    id: 9,
+    title: '加速',
+    description:
+      'EdgeMirror：边缘镜像网关，加速源码、包仓库、模型库、Docker 镜像、Linux 镜像与运行时下载',
+    image: 'image/edgemirror.webp',
+    tags: ['镜像', '网关'],
+    demoUrl: 'https://d.mingcy.cn',
+    codeUrl: 'https://github.com/tianrking/EdgeMirror',
+  },
 ]

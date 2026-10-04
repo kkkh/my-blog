@@ -37,6 +37,7 @@ async function generateSitemap(): Promise<string> {
   add('/projects/', '0.6')
   add('/tools/', '0.5')
   add('/tags/', '0.5')
+  add('/categories/', '0.5')
 
   for (let i = 1; i <= totalPages; i++) {
     if (i === 1) continue

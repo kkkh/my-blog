@@ -9,13 +9,15 @@ const imageBase = 'https://mingcy.cn/'
     projects.map((project) => (
       <li>
         <div class="rounded-lg bg-accent/10 overflow-hidden group h-full flex flex-col">
-          <div class="aspect-video overflow-hidden">
+          <div
+            class="aspect-video overflow-hidden"
+            style="background: linear-gradient(135deg, rgb(var(--color-bg-secondary) / 0.75), rgb(var(--color-bg-primary) / 0.35));">
             <img
               class="size-full object-cover transition-transform group-hover:scale-110"
               src={imageBase + project.image}
               alt={`Project cover: ${project.title}`}
               loading="lazy"
-            />
+              onerror="this.remove()" />
           </div>
           <div class="p-4 flex flex-col grow">
             <div class="flex items-center gap-2 flex-wrap">
