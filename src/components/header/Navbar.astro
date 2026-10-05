@@ -229,19 +229,42 @@ function isGroupActive(items: NavLink[]): boolean {
             {item.label}
           </a>
         ) : (
-          <div class="navbar__drawer-group">
-            <div class="navbar__drawer-title">{item.label}</div>
+          <details
+            class="navbar__drawer-group"
+            open={isGroupActive(item.items) ? true : undefined}
+          >
+            <summary class="navbar__drawer-title">
+              <span>{item.label}</span>
+              <svg
+                class="navbar__drawer-chevron"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                width="1rem"
+                height="1rem"
+                aria-hidden="true">
+                <path d="m6 9 6 6 6-6"></path>
+              </svg>
+            </summary>
             {item.items.map((sub) => (
               <a
                 href={sub.href}
                 target={sub.external ? '_blank' : undefined}
                 rel={sub.external ? 'noopener noreferrer' : undefined}
-                class="navbar__drawer-link navbar__drawer-link--sub"
+                class:list={[
+                  'navbar__drawer-link',
+                  'navbar__drawer-link--sub',
+                  { 'nav-active': isActive(sub.href) },
+                ]}
               >
                 {sub.label}
               </a>
             ))}
-          </div>
+          </details>
         ),
       )
     }
@@ -672,6 +695,10 @@ function isGroupActive(items: NavLink[]): boolean {
     z-index: 990;
     display: none;
     padding: 5.5rem 1.5rem 1.5rem;
+    /* 内容高于视口时可内部滚动，不会超出屏幕裁掉顶部 */
+    max-height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background-color: rgb(var(--color-bg-primary) / 0.92);
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
@@ -714,13 +741,69 @@ function isGroupActive(items: NavLink[]): boolean {
   .navbar__drawer-link.nav-active {
     color: rgb(var(--color-accent));
   }
+  /* ============ 抽屉分组：原生 details/summary 折叠 ============ */
+  .navbar__drawer-group {
+    border-radius: 0.6rem;
+  }
+  .navbar__drawer-group[open] {
+    background: color-mix(in srgb, rgb(var(--color-bg-secondary)) 35%, transparent);
+  }
   .navbar__drawer-title {
-    padding: 0.9rem 0.9rem 0.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem;
     color: rgb(var(--color-text-secondary));
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
+    list-style: none; /* Firefox：隐藏默认三角 */
+    border-radius: 0.6rem;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      color 0.15s,
+      background-color 0.15s;
+  }
+  .navbar__drawer-title::-webkit-details-marker {
+    display: none; /* WebKit/Blink：隐藏默认三角 */
+  }
+  .navbar__drawer-title:hover {
+    color: rgb(var(--color-accent));
+    background: color-mix(in srgb, rgb(var(--color-accent)) 8%, transparent);
+  }
+  .navbar__drawer-title:focus-visible {
+    outline: none;
+    color: rgb(var(--color-accent));
+    box-shadow: 0 0 0 2px color-mix(in srgb, rgb(var(--color-accent)) 50%, transparent);
+  }
+  .navbar__drawer-chevron {
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    color: inherit;
+    opacity: 0.55;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .navbar__drawer-group[open] .navbar__drawer-chevron {
+    transform: rotate(180deg);
+  }
+  /* 展开时子项淡入下滑 */
+  .navbar__drawer-group[open] > .navbar__drawer-link--sub {
+    animation: navbar-drawer-sub-in 0.22s ease both;
+  }
+  @keyframes navbar-drawer-sub-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   .navbar__drawer-link--sub {
     padding-left: 1.6rem;
@@ -760,6 +843,12 @@ function isGroupActive(items: NavLink[]): boolean {
     }
     .glide-pill {
       transition: none;
+    }
+    .navbar__drawer-chevron {
+      transition: none;
+    }
+    .navbar__drawer-group[open] > .navbar__drawer-link--sub {
+      animation: none;
     }
   }
 

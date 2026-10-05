@@ -1,7 +1,7 @@
 {
-  "name": "astro-gyoza",
+  "name": "astro-mingcy",
   "type": "module",
-  "version": "0.0.1",
+  "version": "3.0.0",
   "scripts": {
     "prepare": "pnpm exec simple-git-hooks",
     "dev": "astro dev",
