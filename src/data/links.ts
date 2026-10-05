@@ -248,6 +248,12 @@ export const friendLinks: LinkCategory[] = [
         avatar: 'https;//taozhiyy.top/cos/1.png',
         desc: '桃之天天的小屋',
       },
+      {
+        name: '叁拾玖の小站',
+        url: 'https://www.sanshijiu.cn',
+        avatar: 'https://www.sanshijiu.cn/static/avatar/1/1787397803188bebb136a.jpg',
+        desc: '无人扶我青云志，我自踏雪至山巅！',
+      },
     ],
   },
   {
