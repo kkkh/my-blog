@@ -54,8 +54,27 @@ const { title, description, image } = Astro.props
     <div class="site-grain hidden-mobile pointer-events-none fixed inset-0 z-0" aria-hidden="true">
     </div>
     <script is:inline data-swup-ignore-script>
-      // 随机壁纸：一次请求，多处复用
+      // 注册背景图 Service Worker（仅 https/localhost，sw.js 在 public/ 根）
+      // SW 拦截 webp.mingcy.cn 请求，Stale-While-Revalidate + 固定 KEY 缓存：
+      //   首次走网络（慢，必然）；之后每次刷新命中缓存秒开，后台静默更新下一张。
+      //   opaque response（no-cors）可被 cache.put 存、被 img/css 渲染，不需要 CORS 头。
+      // data-swup-ignore-script：Swup 切页不重建 body，注册只跑一次。
+      if (
+        'serviceWorker' in navigator &&
+        (location.protocol === 'https:' ||
+          location.hostname === 'localhost' ||
+          location.hostname === '127.0.0.1')
+      ) {
+        navigator.serviceWorker.register('/sw.js').catch(function () {})
+      }
+    </script>
+    <script is:inline data-swup-ignore-script>
+      // 随机壁纸：一次请求，多处复用 + Service Worker 跨刷新缓存
       //
+      // 行为：未加载完 = 纯色背景（::before 无图 + opacity:0，露元素 background-color），
+      //       decode 完成后才 apply → 设 CSS 变量 + 加 .bg-ready → 两处图片层 0.9s 淡入。
+      //       SW 命中缓存时 new Image 秒级 load；首次访问无缓存走网络（慢，必然）。
+      //       失败时静默，保持纯色占位（用户要的「没加载出来之前黑白纯色背景」）。
       // 全局背景层（.site-wallpaper）与右侧侧边栏卡片（.bg-shared-media）以前各自直连
       // webp.mingcy.cn，同一张随机图被下载两次，且两次返回结果不同 → 画面割裂。
       // 现在只发 1 次请求，把带时间戳的真实 URL 写入 :root 的 --random-bg-url，
@@ -73,21 +92,10 @@ const { title, description, image } = Astro.props
           docEl.classList.add('bg-ready')
         }
 
-        // 失败 / 超时：不覆盖变量 → 回退 :root 上的 CSS 兜底值（裸接口）；
-        // 仍加 .bg-ready，两处一起淡入、或一起停在占位底色，绝不出现一处成功一处失败
-        function fallback() {
-          if (settled) return
-          settled = true
-          docEl.classList.add('bg-ready')
-        }
-
         var url = 'https://webp.mingcy.cn?v=' + Date.now()
         var img = new Image()
-        var decoded = false
         img.addEventListener('load', function () {
-          if (decoded) return
-          decoded = true
-          // decode() 保证帧已解码，写入变量时不闪；不支持时直接降级
+          // decode() 保证帧已解码，写入变量时不闪；不支持/失败时直接 apply（CSS 渲染仍可用）
           if (typeof img.decode === 'function') {
             img.decode().then(function () {
               apply(url)
@@ -98,11 +106,10 @@ const { title, description, image } = Astro.props
             apply(url)
           }
         })
-        img.addEventListener('error', fallback)
+        img.addEventListener('error', function () {
+          // 静默：保持纯色占位，不强制显示兜底图（用户要的就是「没加载完纯色」）
+        })
         img.src = url
-
-        // 8s 兜底：网络极慢时不一直挂占位色
-        setTimeout(fallback, 8000)
       })()
     </script>
 

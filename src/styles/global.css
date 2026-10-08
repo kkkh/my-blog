@@ -257,11 +257,13 @@ html[data-theme='dark'] .spoiler:hover {
 
 /* ─── Card Glass CSS Variables ─── */
 :root {
-  /* 随机壁纸 URL（一次请求、多处复用）：Layout 内联脚本只发 1 次请求，
-     成功后把带时间戳的真实 URL 写入本变量，全局背景层 / 侧边栏卡片 / 关于页装饰图
-     全部读同一个 --random-bg-url → 浏览器只下载一次，两处画面完全同步。
-     兑底值指向裸接口（无缓存杀手），脚本未跑/失败时仍能显示一张随机图 */
-  --random-bg-url: url('https://webp.mingcy.cn');
+  /* 随机壁纸 URL（一次请求、多处复用）：Layout 内联脚本 + Service Worker 协作。
+     SW 用 no-cors fetch 拿 opaque response 存进固定 KEY 缓存（忽略 ?v=timestamp），
+     刷新时 SW 命中缓存秒开、后台静默更新下一张；脚本 apply() 把带时间戳的真实 URL
+     写入本变量，全局背景层 / 侧边栏卡片 / 关于页装饰图全部读同一变量，浏览器只下载一次。
+     兑底值 none：未加载时 ::before 无背景图 + opacity:0 → 露元素的纯色 background-color
+     （即「没加随机图之前的黑白纯色背景」），脚本未跑/图未加载完绝不额外下载兜底图 */
+  --random-bg-url: none;
 
   --card-glass-bg: rgb(from var(--color-bg-primary) r g b / 0.45);
   --card-glass-border: rgba(0, 0, 0, 0.05);

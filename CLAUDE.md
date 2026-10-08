@@ -77,6 +77,56 @@ astro-gyoza/
 
 ## 迁移记录
 
+### 2026-10-09 00:00 - 随机壁纸性能重构：纯色占位 + Service Worker 跨刷新 SWR 缓存
+
+**背景：** 用户反馈加随机图后网站速度非常慢。要求：①图片未加载完前用黑白纯色背景（即没加随机图之前的背景）；②图片彻底加载完毕后才显示壁纸；③缓存一张背景图，刷新时展示缓存的图（第二张）。
+
+**慢的根因：** `Layout.astro` 壁纸脚本用 `var url = 'https://webp.mingcy.cn?v=' + Date.now()` —— `?v=timestamp` 是缓存杀手，URL 每次刷新都不同，浏览器 HTTP 缓存按 URL 匹配 → **每次刷新都重新下载一整张 1–2MB 的 webp**。这是「刷新就慢」的直接原因。
+
+**CORS 硬限制（决定方案）：** `webp.mingcy.cn` 实测**完全不返回 `Access-Control-Allow-Origin`**（带不带 Origin 头都没有）。浏览器同源策略下 `fetch()` / canvas 都拿不到跨域图片字节 → **IndexedDB 存 Blob 方案不可行**。
+
+**最终方案：Service Worker + Cache API + Stale-While-Revalidate + 固定 KEY**（唯一不需要服务端 CORS 配合的跨域图片缓存方案）：
+
+- SW 用 `fetch(request, {mode:'no-cors'})` 拿 **opaque response** —— JS 读不到内容，但 `new Image` / CSS `url()` 能渲染，`cache.put` 能存；这是 opaque response 的关键特性
+- **固定 KEY** `'https://webp.mingcy.cn/__bg_cache__'`（不是真实 URL，仅作 cache 槽位标识）忽略 `?v=timestamp` 参数 → 跨刷新复用同一份缓存
+- **SWR 流程**：首次访问无缓存走网络（慢，必然）；之后每次刷新 SW 命中缓存秒开返回 + 后台 `fetch` 新图覆盖固定 KEY；下次刷新返回上次后台更新的图（即「第二张」）→ 正好对应用户「刷新展示第二张图」语义
+- 只拦截 `webp.mingcy.cn`，其他请求一律放行（`if (url.hostname !== BG_HOST) return`）
+
+**修改文件：** `public/sw.js`（新建）、`src/layouts/Layout.astro`、`src/styles/global.css`
+
+**① `public/sw.js`（新建，2916 B）：**
+
+- `install` → `skipWaiting()`；`activate` → 清旧缓存 + `clients.claim()`
+- `fetch` 事件：`new URL(e.request.url).hostname !== 'webp.mingcy.cn'` 直接 return 放行
+- `handleBg(e)`：`caches.open(CACHE).match(BG_KEY)` 取缓存；后台 `fetch(e.request, {mode:'no-cors', cache:'no-store'})` 更新固定 KEY（`cache: 'no-store'` 确保后台更新真正请求网络、不读 HTTP 缓存）；有缓存先返回 + `e.waitUntil(networkPromise)` 保活后台更新；无缓存等网络；都失败返回 `new Response('', {status:504})` 让 img 触发 onerror
+
+**② `Layout.astro`（壁纸脚本重构 + 新增 SW 注册脚本）：**
+
+- 新增独立 `<script is:inline data-swup-ignore-script>` 注册 SW（仅 `https:` / `localhost` / `127.0.0.1`；`navigator.serviceWorker.register('/sw.js').catch(()=>{})`）；`data-swup-ignore-script` 保证 Swup 切页不重跑、注册只一次
+- 壁纸脚本简化：**删掉 `fallback()` 函数**（原逻辑加 `.bg-ready` 会显示 `:root` 兜底 url，即裸接口图，违背「未加载完纯色」）；**删掉 `setTimeout(fallback, 8000)`**（用户要「没加载完就纯色」，不该有超时强制兜底）；**删掉 `decoded` 标志**（`apply` 已有 `settled` 守卫，`decoded` 冗余）
+- `error` 处理改为静默空函数（保持纯色占位，不强制显示兜底图）
+- `load` → `img.decode().then(apply, apply)`（decode 失败也 apply，CSS 渲染仍可用）；`apply(url)` 设 `--random-bg-url` + 加 `.bg-ready` 不变
+
+**③ `global.css`（`:root` 兜底值改 none）：**
+
+- `--random-bg-url: url('https://webp.mingcy.cn')` → **`--random-bg-url: none`**
+- 原因：原兑底值指向裸接口，`::before` 在 `opacity:0` 时浏览器仍可能加载该 url → 额外下载一张图；改 `none` 后未加载时 `::before` 无背景图 + `opacity:0` → 露元素 `.site-wallpaper` 的 `background-color: rgb(var(--color-bg-primary))`（亮色浅绿 / 暗色深蓝纯色），即「没加随机图之前的黑白纯色背景」彻底成立
+- 侧边栏 `.bg-shared-media` 同理受益（读同一变量，未加载时露自身 `background-color`）
+
+**验证：** `astro check` 113 files / 0 / 0 / 0；`astro build` 213 pages Complete。dist 核验：`dist/sw.js` 存在（2916 B，`node --check` 通过）；`index.html` 含 SW 注册脚本 + `var url = 'https://webp.mingcy.cn?v=' + Date.now()`（唯一真请求，其余 4 处全在 HTML/JS 注释里）；旧 `setTimeout(fallback, 8000)` / `function fallback` 在 HTML 里 **0 处残留**；`_spec_*.css` 含 `--random-bg-url: none`、`webp.mingcy.cn` 在 CSS 里 **0 处**（旧 url() 兜底彻底消失）；sw.js 含 `BG_HOST`/`BG_KEY`/`handleBg`/`no-cors`/`cache.put`/`return cached`/`Response 504` 全部逻辑。
+
+**注意：**
+
+- ① **首次访问仍慢**（无 SW 缓存，走网络下载 1–2MB），这是 SW 缓存的固有特性；从第二次刷新起秒开。要首次也快只能构建期预下载一批图存 `public/`（失去「每次随机」），本次未做
+- ② SW 只在 `https:` / `localhost` / `127.0.0.1` 生效；生产 `mingcy.cn` 是 https，OK；本地 `pnpm dev` 是 http+localhost，OK
+- ③ SW 生命周期：首次访问注册后需 `install` + `activate` + `claim` 才接管（通常几秒），首次壁纸请求可能早于 SW 就绪仍走网络；后续刷新全程命中
+- ④ opaque response 无法用 JS 读取内容（`response.blob()` 得到 size:0），所以不能用 `caches.match` + `createObjectURL` 方案，只能让浏览器自己请求（`new Image` / CSS `url()`）由 SW 返回 opaque
+- ⑤ `fetch(e.request, {cache: 'no-store'})` 的 `cache: no-store` 是 fetch init 选项，确保后台更新不读 HTTP 缓存、真正请求网络拿新随机图
+- ⑥ 若日后 `webp.mingcy.cn` 加了 `Access-Control-Allow-Origin: *`，可改用 `mode: 'cors'` + IndexedDB 存 Blob 方案（更可控），但当前 SW opaque 方案已足够
+- ⑦ 改 sw.js 后部署，旧 SW 仍缓存旧版 → `CACHE` 常量改版本号（`gyoza-bg-v1` → `v2`）会让 `activate` 清旧缓存；当前 `gyoza-bg-v1` 是首版无需特殊处理
+
+---
+
 ### 2026-10-04 20:15 - 导航新增三个子域外链 + 随机壁纸一次请求两处复用
 
 **背景：** ①在导航分组的「导航」下加三个外链：笔记 `e.mingcy.cn`、编辑 `markdown.mingcy.cn`、集合 `h.mingcy.cn`；②全局背景层与右侧侧边栏卡片背景直连同一个随机接口，**同一张图被下载两次且两次返回结果不同** → 冗余请求 + 画面割裂。目标：1 次请求，两处复用，完全同步。
