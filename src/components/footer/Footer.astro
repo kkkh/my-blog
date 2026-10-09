@@ -20,10 +20,12 @@ const wordCountStr = (wordCount / 1000).toFixed(1) + 'k'
 >
   <div class="text-center space-y-2">
     <div>
-      Powered by
+      由
       <Link href="https://astro.build/">Astro</Link>
-      & Designed by
-      <Link href="https://github.com/rumian0/astro">MingCY</Link>
+      强力驱动
+      ·  由
+      <Link href="https://github.com/kkkh/my-blog">Qinchao</Link>
+      倾心呈现
     </div>
     <div class="space-x-1">
       <span>&copy;{copyDate} <Link href="/">{author.name}</Link>.</span>
@@ -39,7 +41,7 @@ const wordCountStr = (wordCount / 1000).toFixed(1) + 'k'
     <div>
       <RunningDays client:only="react" />
       <span class="select-none opacity-50">|</span>
-      <span>共嘚嘚了 {wordCountStr} 字</span>
+      <span>共撰写了 {wordCountStr} 字</span>
       <span class="select-none opacity-50">|</span>
       <SiteVisitors />
     </div>
