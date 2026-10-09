@@ -8,17 +8,16 @@ const { showRadialGradient = true, className = '' } = Astro.props
 ---
 
 <div
-  class:list={['aurora-container absolute inset-0 overflow-hidden pointer-events-none -z-1', className]}
+  class:list={[
+    'aurora-container absolute inset-0 overflow-hidden pointer-events-none -z-1',
+    className,
+  ]}
   aria-hidden="true"
 >
   <div class="aurora-layer aurora-layer-1"></div>
   <div class="aurora-layer aurora-layer-2"></div>
   <div class="aurora-layer aurora-layer-3"></div>
-  {
-    showRadialGradient && (
-      <div class="aurora-radial-overlay"></div>
-    )
-  }
+  {showRadialGradient && <div class="aurora-radial-overlay" />}
 </div>
 
 <style>

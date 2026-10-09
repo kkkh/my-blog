@@ -45,7 +45,14 @@ function findMotionParts(u8) {
     let found = -1
     for (let d = -4; d <= 4; d++) {
       const p = videoStart + d
-      if (p >= 0 && p + 8 < u8.length && u8[p + 4] === 0x66 && u8[p + 5] === 0x74 && u8[p + 6] === 0x79 && u8[p + 7] === 0x70) {
+      if (
+        p >= 0 &&
+        p + 8 < u8.length &&
+        u8[p + 4] === 0x66 &&
+        u8[p + 5] === 0x74 &&
+        u8[p + 6] === 0x79 &&
+        u8[p + 7] === 0x70
+      ) {
         found = p
         break
       }
@@ -65,7 +72,13 @@ function findMotionParts(u8) {
     for (let i = 0; i < u8.length - 10; i++) {
       if (u8[i] === 0xff && u8[i + 1] === 0xd9) {
         for (let j = i + 2; j < Math.min(u8.length, i + 100); j++) {
-          if (j + 8 < u8.length && u8[j + 4] === 0x66 && u8[j + 5] === 0x74 && u8[j + 6] === 0x79 && u8[j + 7] === 0x70) {
+          if (
+            j + 8 < u8.length &&
+            u8[j + 4] === 0x66 &&
+            u8[j + 5] === 0x74 &&
+            u8[j + 6] === 0x79 &&
+            u8[j + 7] === 0x70
+          ) {
             videoStart = j - 4
             break
           }
@@ -143,22 +156,57 @@ function buildPvt(entries) {
   let offset = 0
   for (const { name, data } of entries) {
     const nb = new TextEncoder().encode(name)
-    locals.push(concat([
-      u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
-      u32(crc32(data)), u32(data.length), u32(data.length), u16(nb.length), u16(0),
-      nb, data
-    ]))
-    centrals.push(concat([
-      u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
-      u32(crc32(data)), u32(data.length), u32(data.length),
-      u16(nb.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), nb
-    ]))
+    locals.push(
+      concat([
+        u32(0x04034b50),
+        u16(20),
+        u16(0x0800),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(crc32(data)),
+        u32(data.length),
+        u32(data.length),
+        u16(nb.length),
+        u16(0),
+        nb,
+        data,
+      ]),
+    )
+    centrals.push(
+      concat([
+        u32(0x02014b50),
+        u16(20),
+        u16(20),
+        u16(0x0800),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(crc32(data)),
+        u32(data.length),
+        u32(data.length),
+        u16(nb.length),
+        u16(0),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(0),
+        u32(offset),
+        nb,
+      ]),
+    )
     offset += locals[locals.length - 1].length
   }
   const cd = concat(centrals)
   const eocd = concat([
-    u32(0x06054b50), u16(0), u16(0), u16(entries.length), u16(entries.length),
-    u32(cd.length), u32(offset), u16(0)
+    u32(0x06054b50),
+    u16(0),
+    u16(0),
+    u16(entries.length),
+    u16(entries.length),
+    u32(cd.length),
+    u32(offset),
+    u16(0),
   ])
   return concat([...locals, cd, eocd])
 }
@@ -171,8 +219,8 @@ const outFlag = args.indexOf('--out')
 const outDir = outFlag !== -1 && args[outFlag + 1] ? args[outFlag + 1] : 'assets'
 const dryRun = args.includes('--dry-run')
 const pvtOnly = args.includes('--pvt-only')
-const inputs = args.filter((a, i) =>
-  a !== '--out' && args[i - 1] !== '--out' && a !== '--dry-run' && a !== '--pvt-only'
+const inputs = args.filter(
+  (a, i) => a !== '--out' && args[i - 1] !== '--out' && a !== '--dry-run' && a !== '--pvt-only',
 )
 
 if (!inputs.length) {
@@ -209,8 +257,16 @@ for (const input of inputs) {
   savedBytes += parts.video.length // 拆开后可省下的就是整份视频那一份
 
   if (dryRun) {
-    console.log('  + Motion Photo：' + basename(input) + '  ' + kb(size) +
-      '  →  封面 ' + kb(parts.cover.length) + '  +  视频 ' + kb(parts.video.length))
+    console.log(
+      '  + Motion Photo：' +
+        basename(input) +
+        '  ' +
+        kb(size) +
+        '  →  封面 ' +
+        kb(parts.cover.length) +
+        '  +  视频 ' +
+        kb(parts.video.length),
+    )
     continue
   }
 
@@ -222,7 +278,7 @@ for (const input of inputs) {
   writeFileSync(join(outDir, coverName), Buffer.from(parts.cover))
   const pvtData = buildPvt([
     { name: base + '.JPG', data: parts.cover },
-    { name: base + '.MP4', data: parts.video }
+    { name: base + '.MP4', data: parts.video },
   ])
   writeFileSync(join(outDir, pvtName), Buffer.from(pvtData))
   let wroteVideo = true
@@ -237,9 +293,21 @@ for (const input of inputs) {
   console.log('   打包 ' + pvtName.padEnd(28) + kb(pvtData.length))
   if (wroteVideo) console.log('   视频 ' + videoName.padEnd(28) + kb(parts.video.length))
   console.log('   ── 流量对比 ──')
-  console.log('      Motion Photo 现状      2 × ' + kb(size) + ' = ' + kb(size * 2) + '  （<img> 一次 + fetch 一次）')
-  console.log('      封面+视频 分离           ' + kb(parts.cover.length + parts.video.length) + '  ← 最省，且 video 标签不需要 CORS')
-  console.log('      .pvt + 单独封面          ' + kb(size + parts.cover.length) + '  （仍比现状省一半）')
+  console.log(
+    '      Motion Photo 现状      2 × ' +
+      kb(size) +
+      ' = ' +
+      kb(size * 2) +
+      '  （<img> 一次 + fetch 一次）',
+  )
+  console.log(
+    '      封面+视频 分离           ' +
+      kb(parts.cover.length + parts.video.length) +
+      '  ← 最省，且 video 标签不需要 CORS',
+  )
+  console.log(
+    '      .pvt + 单独封面          ' + kb(size + parts.cover.length) + '  （仍比现状省一半）',
+  )
   console.log('')
 }
 
@@ -247,8 +315,16 @@ console.log('')
 console.log('──────── 汇总 ────────')
 console.log('  Motion Photo   ' + motionCount + ' / ' + total + ' 张')
 console.log('  Motion Photo 总源体积   ' + (motionBytes / 1048576).toFixed(2) + ' MB')
-console.log('  若现状（Motion Photo 直接给浏览器）需下载 ' + (motionBytes * 2 / 1048576).toFixed(2) + ' MB  ← 2 倍')
-console.log('  若拆成 .pvt + 封面         ' + ((motionBytes + motionBytes) / 1048576).toFixed(2) + ' MB 上界（含 .pvt 与单独封面）')
+console.log(
+  '  若现状（Motion Photo 直接给浏览器）需下载 ' +
+    ((motionBytes * 2) / 1048576).toFixed(2) +
+    ' MB  ← 2 倍',
+)
+console.log(
+  '  若拆成 .pvt + 封面         ' +
+    ((motionBytes + motionBytes) / 1048576).toFixed(2) +
+    ' MB 上界（含 .pvt 与单独封面）',
+)
 console.log('  若只给封面 + 视频分离     ' + (motionBytes / 1048576).toFixed(2) + ' MB  ← 最省')
 console.log('')
 if (dryRun) {

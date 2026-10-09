@@ -1,5 +1,3 @@
-<!-- Apple Liquid Glass: grayscale pill tags (components.md §6) -->
-<!-- Grayscale body text, subtle bg; hover with gentle lift; tabular-nums for counts -->
 ---
 interface Props {
   tags: {
@@ -12,7 +10,7 @@ interface Props {
 const { tags } = Astro.props
 ---
 
-{
+<!-- Apple Liquid Glass: grayscale pill tags (components.md §6) --><!-- Grayscale body text, subtle bg; hover with gentle lift; tabular-nums for counts -->{
   tags.length === 0 ? (
     <div class="text-center text-sm text-tertiary">暂无标签</div>
   ) : (

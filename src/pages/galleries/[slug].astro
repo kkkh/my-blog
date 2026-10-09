@@ -16,16 +16,16 @@ const { slug } = Astro.params
 const { title, description, date } = entry.data
 
 const allImages = import.meta.glob<{ default: ImageMetadata }>(
-  "/src/content/galleries/**/*.{jpg,jpeg,png,webp,avif,gif,JPG,JPEG,PNG,WEBP}",
-  { eager: true }
+  '/src/content/galleries/**/*.{jpg,jpeg,png,webp,avif,gif,JPG,JPEG,PNG,WEBP}',
+  { eager: true },
 )
 
 // 实况照片资产：同名 .pvt 存在时，该项走实况灯箱（点击放大播放视频）。
 // 原 Motion Photo jpg 会让浏览器下载两遍整份文件（<img> 一遍 +
 // Heo 抽内嵌视频时 fetch 再一遍）；.pvt 一次下载同时拿到封面和视频。
-const allPvt = import.meta.glob<string>("/src/content/galleries/**/*.pvt", {
-  query: "?url",
-  import: "default",
+const allPvt = import.meta.glob<string>('/src/content/galleries/**/*.pvt', {
+  query: '?url',
+  import: 'default',
   eager: true,
 })
 
@@ -35,7 +35,7 @@ const allPvt = import.meta.glob<string>("/src/content/galleries/**/*.pvt", {
 // intrinsic 尺寸（来自 ImageMetadata），瀑布流布局稳定不跳动、原生比例无裁切。
 // Heo 解包 .pvt 后把 img.src 换成 blob 封面（同尺寸）。
 const LIVE_PLACEHOLDER =
-  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 type GalleryImage = {
   src: string
@@ -67,19 +67,19 @@ type GalleryImage = {
 type RemoteManifest = {
   images: Array<
     | { alt: string; width: number; height: number; cover: string; video: string }
-    | { alt: string; width: number; height: number; src: string; live: "motion" }
+    | { alt: string; width: number; height: number; src: string; live: 'motion' }
   >
 }
-const manifests = import.meta.glob("/src/data/gallery-manifests/*.json", {
+const manifests = import.meta.glob('/src/data/gallery-manifests/*.json', {
   eager: true,
 }) as Record<string, RemoteManifest | { default: RemoteManifest }>
 const manifestMod = manifests[`/src/data/gallery-manifests/${slug}.json`]
 const remoteImages: GalleryImage[] = (() => {
   if (!manifestMod) return []
   // JSON 模块经 glob 得到的是 { default: {...} }，这里两个分支都兼容
-  const m = "default" in manifestMod ? manifestMod.default : manifestMod
+  const m = 'default' in manifestMod ? manifestMod.default : manifestMod
   return m.images.map((img) =>
-    "cover" in img
+    'cover' in img
       ? {
           src: img.cover,
           alt: img.alt || title,
@@ -98,23 +98,20 @@ const remoteImages: GalleryImage[] = (() => {
           live: true,
           motion: img.src,
           remote: true,
-        }
+        },
   )
 })()
 
 const localImages: GalleryImage[] = Object.entries(allImages)
-  .filter(
-    ([path]) =>
-      path.startsWith(`/src/content/galleries/${slug}/`) && !path.includes("index")
-  )
+  .filter(([path]) => path.startsWith(`/src/content/galleries/${slug}/`) && !path.includes('index'))
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([path, mod]) => {
-    const file = path.split("/").pop() || ""
-    const base = file.replace(/\.[^.]+$/, "")
+    const file = path.split('/').pop() || ''
+    const base = file.replace(/\.[^.]+$/, '')
     const pvt = allPvt[`/src/content/galleries/${slug}/${base}.pvt`]
     return {
       src: mod.default.src,
-      alt: base.replace(/[-_]/g, " ") || title,
+      alt: base.replace(/[-_]/g, ' ') || title,
       width: mod.default.width,
       height: mod.default.height,
       live: Boolean(pvt),
@@ -131,9 +128,7 @@ const bodyImages: GalleryImage[] = Array.from(entry.body?.matchAll(/<img\b[^>]*>
   })
   .filter((image): image is { src: string; alt: string } => Boolean(image))
 
-const images: GalleryImage[] = remoteImages.length
-  ? remoteImages
-  : localImages.concat(bodyImages)
+const images: GalleryImage[] = remoteImages.length ? remoteImages : localImages.concat(bodyImages)
 ---
 
 <PageLayout>
@@ -147,44 +142,46 @@ const images: GalleryImage[] = remoteImages.length
       </div>
     </div>
 
-    {images.length > 0 ? (
-      <div class="gallery-waterfall" id="gallery-waterfall">
-        {images.map((img, idx) => (
-          // data-cover/data-video：pvt 项给 src 当解包失败兜底 + 空 video；
-          // 分离模式给真 cover/video；motion 项都不给（灯箱自己解包出封面）。
-          <a
-            href={img.live ? undefined : img.src}
-            class={`gallery-item group${img.live ? ' gallery-live' : ''}`}
-            data-fancybox="gallery"
-            data-no-swup
-            data-caption={img.alt}
-            data-pvt={img.live ? img.pvt : undefined}
-            data-motion={img.live ? img.motion : undefined}
-            data-cover={img.live ? img.pvt ? img.src : img.cover : undefined}
-            data-video={img.live ? img.pvt ? "" : img.video : undefined}
-            aria-label=`View image: ${img.alt}`
-          >
-            <img
-              src={img.live && img.pvt ? LIVE_PLACEHOLDER : img.src}
-              alt={img.alt}
-              width={img.width}
-              height={img.height}
-              class="gallery-img"
-              data-live-pvt={img.live ? img.pvt : undefined}
-              data-live-motion={img.live && img.motion ? img.motion : undefined}
-              data-live-video={img.live && img.video ? img.video : undefined}
-              loading={img.remote ? "lazy" : idx < 6 ? "eager" : "lazy"}
-              decoding="async"
-            />
-            <div class="gallery-overlay">
-              <span class="gallery-alt">{img.alt}</span>
-            </div>
-          </a>
-        ))}
-      </div>
-    ) : (
-      <p class="text-center text-secondary py-12">暂无照片</p>
-    )}
+    {
+      images.length > 0 ? (
+        <div class="gallery-waterfall" id="gallery-waterfall">
+          {images.map((img, idx) => (
+            // data-cover/data-video：pvt 项给 src 当解包失败兜底 + 空 video；
+            // 分离模式给真 cover/video；motion 项都不给（灯箱自己解包出封面）。
+            <a
+              href={img.live ? undefined : img.src}
+              class={`gallery-item group${img.live ? ' gallery-live' : ''}`}
+              data-fancybox="gallery"
+              data-no-swup
+              data-caption={img.alt}
+              data-pvt={img.live ? img.pvt : undefined}
+              data-motion={img.live ? img.motion : undefined}
+              data-cover={img.live ? (img.pvt ? img.src : img.cover) : undefined}
+              data-video={img.live ? (img.pvt ? '' : img.video) : undefined}
+              aria-label={`View image: ${img.alt}`}
+            >
+              <img
+                src={img.live && img.pvt ? LIVE_PLACEHOLDER : img.src}
+                alt={img.alt}
+                width={img.width}
+                height={img.height}
+                class="gallery-img"
+                data-live-pvt={img.live ? img.pvt : undefined}
+                data-live-motion={img.live && img.motion ? img.motion : undefined}
+                data-live-video={img.live && img.video ? img.video : undefined}
+                loading={img.remote ? 'lazy' : idx < 6 ? 'eager' : 'lazy'}
+                decoding="async"
+              />
+              <div class="gallery-overlay">
+                <span class="gallery-alt">{img.alt}</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p class="text-center text-secondary py-12">暂无照片</p>
+      )
+    }
   </div>
 </PageLayout>
 
@@ -199,8 +196,16 @@ const images: GalleryImage[] = remoteImages.length
     padding: 0;
     margin: 0;
   }
-  @media (max-width: 768px) { .gallery-waterfall { column-count: 2; } }
-  @media (max-width: 480px) { .gallery-waterfall { column-count: 1; } }
+  @media (max-width: 768px) {
+    .gallery-waterfall {
+      column-count: 2;
+    }
+  }
+  @media (max-width: 480px) {
+    .gallery-waterfall {
+      column-count: 1;
+    }
+  }
 
   /* -------- 单个相册项 --------
      必须块级 + break-inside:avoid，否则 CSS column 会把图片拦腰截断到下一列。
@@ -216,7 +221,9 @@ const images: GalleryImage[] = remoteImages.length
     cursor: zoom-in;
     background: rgb(from var(--color-text-primary) r g b / 0.05);
     border: 1px solid rgb(from var(--color-border) r g b / 0.25);
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
     break-inside: avoid;
     -webkit-column-break-inside: avoid;
     page-break-inside: avoid;
@@ -239,11 +246,17 @@ const images: GalleryImage[] = remoteImages.length
     animation: gallery-shimmer 1.8s ease infinite;
   }
   @keyframes gallery-shimmer {
-    0% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    .gallery-item.gallery-live { animation: none; }
+    .gallery-item.gallery-live {
+      animation: none;
+    }
   }
   /* 图片：严格按原始比例渲染，无裁切、无拉伸。
      width/height 属性预留尺寸防布局跳动；height:auto 让高度按比例。 */
@@ -252,9 +265,13 @@ const images: GalleryImage[] = remoteImages.length
     height: auto;
     object-fit: contain;
     display: block;
-    transition: transform 0.4s ease, opacity 0.3s ease;
+    transition:
+      transform 0.4s ease,
+      opacity 0.3s ease;
   }
-  .gallery-item:hover .gallery-img { transform: scale(1.03); }
+  .gallery-item:hover .gallery-img {
+    transform: scale(1.03);
+  }
   .gallery-overlay {
     position: absolute;
     inset: 0;
@@ -266,8 +283,14 @@ const images: GalleryImage[] = remoteImages.length
     transition: opacity 0.3s;
     pointer-events: none;
   }
-  .gallery-item:hover .gallery-overlay { opacity: 1; }
-  .gallery-alt { font-size: 0.75rem; color: white; text-shadow: 0 1px 3px rgb(0 0 0 / 0.5); }
+  .gallery-item:hover .gallery-overlay {
+    opacity: 1;
+  }
+  .gallery-alt {
+    font-size: 0.75rem;
+    color: white;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  }
 </style>
 
 <!-- 实况图（HeoLivePhoto）兼容层 + 实况灯箱样式。
@@ -290,10 +313,14 @@ const images: GalleryImage[] = remoteImages.length
     height: auto !important;
     max-width: 100% !important;
     object-fit: contain !important;
-    transition: transform 0.4s ease, opacity 0.3s ease !important;
+    transition:
+      transform 0.4s ease,
+      opacity 0.3s ease !important;
   }
   /* 插件把 img 写成 position:relative + z-index:1，提上图注层保持可点击 */
-  .gallery-item .gallery-overlay { z-index: 3; }
+  .gallery-item .gallery-overlay {
+    z-index: 3;
+  }
 
   /* -------- Fancybox 灯箱内的实况播放器（由 Layout.astro 的 initFancybox 在
             contentReady 阶段从 data-* 动态注入，与缩略图 DOM 完全解耦）-------- */
@@ -320,8 +347,12 @@ const images: GalleryImage[] = remoteImages.length
     transform-origin: center center;
   }
   @keyframes lp-kenburns {
-    0% { transform: scale(1.02); }
-    100% { transform: scale(1.12); }
+    0% {
+      transform: scale(1.02);
+    }
+    100% {
+      transform: scale(1.12);
+    }
   }
   .lp-video {
     position: absolute;
@@ -335,11 +366,15 @@ const images: GalleryImage[] = remoteImages.length
     opacity: 1;
     transition: opacity 0.25s ease;
   }
-  .lp-video.is-waiting { opacity: 0; }
+  .lp-video.is-waiting {
+    opacity: 0;
+  }
   .lp-spin {
     position: absolute;
-    left: 50%; top: 50%;
-    width: 34px; height: 34px;
+    left: 50%;
+    top: 50%;
+    width: 34px;
+    height: 34px;
     margin: -17px 0 0 -17px;
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, 0.28);
@@ -347,21 +382,33 @@ const images: GalleryImage[] = remoteImages.length
     animation: lp-spin 0.8s linear infinite;
     pointer-events: none;
   }
-  @keyframes lp-spin { to { transform: rotate(360deg); } }
+  @keyframes lp-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   .lp-caption {
     position: absolute;
-    left: 0; right: 0; bottom: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     margin: 0;
     padding: 10px 14px;
     font-size: 0.85rem;
     line-height: 1.4;
     color: #fff;
-    background: linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0));
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
     pointer-events: none;
   }
   @media (prefers-reduced-motion: reduce) {
-    .lp-cover { animation: none; }
-    .lp-video { transition: none; }
-    .lp-spin { animation-duration: 1.6s; }
+    .lp-cover {
+      animation: none;
+    }
+    .lp-video {
+      transition: none;
+    }
+    .lp-spin {
+      animation-duration: 1.6s;
+    }
   }
 </style>

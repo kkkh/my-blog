@@ -136,20 +136,27 @@ for (const file of files) {
   const md = await readFile(file, 'utf-8')
   const fm = parseFrontmatter(md)
   // 兼容 tags 为数组（兜底）或字符串（单行 YAML 数组）两种情况
-  const tagsRaw = Array.isArray(fm.tags) ? fm.tags.join(',') : (fm.tags || '')
+  const tagsRaw = Array.isArray(fm.tags) ? fm.tags.join(',') : fm.tags || ''
   tasks.push({
     slug,
     title: fm.title,
-    tags: tagsRaw.replace(/^\[|\]$/g, '').replace(/['"]/g, '').split(',').map((t) => t.trim()).filter(Boolean),
+    tags: tagsRaw
+      .replace(/^\[|\]$/g, '')
+      .replace(/['"]/g, '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
     frontmatterSummary: fm.summary,
     body: extractBody(md),
   })
 }
 
 const todo = tasks.filter(
-  (t) => FORCE || !cache[t.slug] || (RETRY_FALLBACK && cache[t.slug]?.from === 'fallback')
+  (t) => FORCE || !cache[t.slug] || (RETRY_FALLBACK && cache[t.slug]?.from === 'fallback'),
 )
-console.log(`[gen-ai-summaries] ${tasks.length} 篇文章，待生成 ${todo.length} 篇（并发 ${CONCURRENCY}）`)
+console.log(
+  `[gen-ai-summaries] ${tasks.length} 篇文章，待生成 ${todo.length} 篇（并发 ${CONCURRENCY}）`,
+)
 
 let cursor = 0
 let ok = 0
@@ -166,11 +173,19 @@ async function worker() {
         ok++
       } else {
         // 空回复 → 用 frontmatter summary 兜底
-        cache[post.slug] = { summary: post.frontmatterSummary, from: 'fallback', updatedAt: new Date().toISOString() }
+        cache[post.slug] = {
+          summary: post.frontmatterSummary,
+          from: 'fallback',
+          updatedAt: new Date().toISOString(),
+        }
         fail++
       }
     } catch (e) {
-      cache[post.slug] = { summary: post.frontmatterSummary, from: 'fallback', updatedAt: new Date().toISOString() }
+      cache[post.slug] = {
+        summary: post.frontmatterSummary,
+        from: 'fallback',
+        updatedAt: new Date().toISOString(),
+      }
       fail++
       console.error(`  ✗ ${post.slug}: ${e.message}`)
     }
@@ -187,4 +202,5 @@ await mkdir(dirname(OUT_FILE), { recursive: true })
 await writeFile(OUT_FILE, JSON.stringify(cache, null, 2) + '\n')
 console.log(`[gen-ai-summaries] 完成。写入 ${OUT_FILE}（AI ${ok} · 兜底 ${fail}）`)
 // AI 服务不可用时以 frontmatter summary 兜底，不阻断构建
-if (fail > 0) console.warn(`[gen-ai-summaries] ${fail} 篇使用文章自带摘要兜底（AI 接口可能暂时不可用）`)
+if (fail > 0)
+  console.warn(`[gen-ai-summaries] ${fail} 篇使用文章自带摘要兜底（AI 接口可能暂时不可用）`)

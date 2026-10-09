@@ -42,7 +42,9 @@ export default function GreetingClock() {
   return (
     <div className="sidebar-card p-5 text-center">
       <div className="clock-time" data-testid="clock">
-        {now ? `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : '--:--:--'}
+        {now
+          ? `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+          : '--:--:--'}
       </div>
       <p className="mt-2 text-xs text-secondary">
         {now ? formatDate(now) : '----年-月-日 · 星期-'}

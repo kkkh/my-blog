@@ -97,11 +97,14 @@ const { title, description, image } = Astro.props
         img.addEventListener('load', function () {
           // decode() 保证帧已解码，写入变量时不闪；不支持/失败时直接 apply（CSS 渲染仍可用）
           if (typeof img.decode === 'function') {
-            img.decode().then(function () {
-              apply(url)
-            }, function () {
-              apply(url)
-            })
+            img.decode().then(
+              function () {
+                apply(url)
+              },
+              function () {
+                apply(url)
+              },
+            )
           } else {
             apply(url)
           }
@@ -447,7 +450,11 @@ const { title, description, image } = Astro.props
           for (var i = 0; i < styles.length; i++) {
             var st = styles[i]
             var css = st.textContent || ''
-            if (css.indexOf('tk-') === -1 && css.indexOf('el-') === -1 && css.indexOf('OwO') === -1) {
+            if (
+              css.indexOf('tk-') === -1 &&
+              css.indexOf('el-') === -1 &&
+              css.indexOf('OwO') === -1
+            ) {
               continue
             }
             document.body.appendChild(st)
@@ -690,25 +697,32 @@ const { title, description, image } = Astro.props
       // （slide 内容就绪钩子，仅当 slide 有 html 选项时触发）注入实况播放器。
       // 实况项 <a> 带 data-pvt（本地 .pvt 包）或 data-motion（远端 Motion Photo 直链）
       // + data-html 空骨架；静态项无 data-html → 走默认 image 灯箱，零影响。
-      (function () {
+      ;(function () {
         // ---- .pvt 解包器（零依赖 ZIP 解析，与 HeoLivePhoto 内部算法一致）----
         var pvtCache = Object.create(null)
         function unpackPvt(url) {
           if (pvtCache[url]) return pvtCache[url]
           var task = fetch(url)
-            .then(function (r) { if (!r.ok) throw new Error('.pvt HTTP ' + r.status); return r.arrayBuffer() })
+            .then(function (r) {
+              if (!r.ok) throw new Error('.pvt HTTP ' + r.status)
+              return r.arrayBuffer()
+            })
             .then(async function (buffer) {
               var bytes = new Uint8Array(buffer)
               var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
               var tail = -1
               for (var i = bytes.length - 22; i >= Math.max(0, bytes.length - 65558); i--) {
-                if (view.getUint32(i, true) === 0x06054b50) { tail = i; break }
+                if (view.getUint32(i, true) === 0x06054b50) {
+                  tail = i
+                  break
+                }
               }
               if (tail < 0) throw new Error('.pvt 不是合法的 zip 包')
               var entries = view.getUint16(tail + 10, true)
               var cursor = view.getUint32(tail + 16, true)
               var decoder = new TextDecoder()
-              var cover = null, video = null
+              var cover = null,
+                video = null
               for (var n = 0; n < entries; n++) {
                 var method = view.getUint16(cursor + 10, true)
                 var csize = view.getUint32(cursor + 20, true)
@@ -719,17 +733,25 @@ const { title, description, image } = Astro.props
                 var name = decoder.decode(bytes.subarray(cursor + 46, cursor + 46 + nameLen))
                 cursor += 46 + nameLen + extraLen + commentLen
                 var base = name.split('/').pop() || ''
-                if (!cover && /\.(jpe?g|webp|png)$/i.test(base)) cover = { method: method, head: localHead, size: csize }
-                else if (!video && /\.(mp4|mov)$/i.test(base)) video = { method: method, head: localHead, size: csize }
+                if (!cover && /\.(jpe?g|webp|png)$/i.test(base))
+                  cover = { method: method, head: localHead, size: csize }
+                else if (!video && /\.(mp4|mov)$/i.test(base))
+                  video = { method: method, head: localHead, size: csize }
                 if (cover && video) break
               }
               if (!cover || !video) throw new Error('.pvt 内没有封面或视频')
               function extract(entry) {
-                var start = entry.head + 30 + view.getUint16(entry.head + 26, true) + view.getUint16(entry.head + 28, true)
+                var start =
+                  entry.head +
+                  30 +
+                  view.getUint16(entry.head + 26, true) +
+                  view.getUint16(entry.head + 28, true)
                 var data = bytes.subarray(start, start + entry.size)
                 if (entry.method === 0) return Promise.resolve(new Blob([data]))
                 if (entry.method === 8 && typeof DecompressionStream === 'function') {
-                  return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).blob()
+                  return new Response(
+                    new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw')),
+                  ).blob()
                 }
                 return Promise.reject(new Error('不支持的 zip 压缩方式 ' + entry.method))
               }
@@ -737,10 +759,18 @@ const { title, description, image } = Astro.props
               return { cover: URL.createObjectURL(parts[0]), video: URL.createObjectURL(parts[1]) }
             })
           pvtCache[url] = task
-          task.catch(function () { delete pvtCache[url] })
+          task.catch(function () {
+            delete pvtCache[url]
+          })
           return task
         }
-        function absolutize(url) { try { return new URL(url, document.baseURI).href } catch (e) { return url } }
+        function absolutize(url) {
+          try {
+            return new URL(url, document.baseURI).href
+          } catch (e) {
+            return url
+          }
+        }
 
         // ---- Motion Photo 解包器（远端 CDN 直连的 Google Motion Photo）----
         // 文件结构：JPEG 封面 + 文件尾部内嵌 MP4。EXIF 里 GCamera:MicroVideoOffset
@@ -765,7 +795,14 @@ const { title, description, image } = Astro.props
                 videoStart = bytes.length - offset
                 for (var d = -4; d <= 4; d++) {
                   var p = videoStart + d
-                  if (p >= 0 && p + 7 < bytes.length && bytes[p + 4] === 0x66 && bytes[p + 5] === 0x74 && bytes[p + 6] === 0x79 && bytes[p + 7] === 0x70) {
+                  if (
+                    p >= 0 &&
+                    p + 7 < bytes.length &&
+                    bytes[p + 4] === 0x66 &&
+                    bytes[p + 5] === 0x74 &&
+                    bytes[p + 6] === 0x79 &&
+                    bytes[p + 7] === 0x70
+                  ) {
                     videoStart = p
                     break
                   }
@@ -774,7 +811,13 @@ const { title, description, image } = Astro.props
                 for (var i = 0; i < bytes.length - 10; i++) {
                   if (bytes[i] === 0xff && bytes[i + 1] === 0xd9) {
                     for (var j = i + 2; j < Math.min(i + 100, bytes.length); j++) {
-                      if (j + 7 < bytes.length && bytes[j + 4] === 0x66 && bytes[j + 5] === 0x74 && bytes[j + 6] === 0x79 && bytes[j + 7] === 0x70) {
+                      if (
+                        j + 7 < bytes.length &&
+                        bytes[j + 4] === 0x66 &&
+                        bytes[j + 5] === 0x74 &&
+                        bytes[j + 6] === 0x79 &&
+                        bytes[j + 7] === 0x70
+                      ) {
                         videoStart = j - 4
                         break
                       }
@@ -786,13 +829,23 @@ const { title, description, image } = Astro.props
               if (videoStart < 0) throw new Error('不是 Motion Photo（未找到内嵌视频）')
               var eoi = -1
               for (var k = videoStart - 2; k >= Math.max(0, videoStart - 100000); k--) {
-                if (bytes[k] === 0xff && bytes[k + 1] === 0xd9) { eoi = k + 2; break }
+                if (bytes[k] === 0xff && bytes[k + 1] === 0xd9) {
+                  eoi = k + 2
+                  break
+                }
               }
               if (eoi < 0) eoi = videoStart
               if (videoStart < eoi) videoStart = eoi
               var cover = bytes.slice(0, eoi)
               var video = bytes.slice(videoStart)
-              if (cover.length < 1024 || video.length < 1024 || cover[0] !== 0xff || cover[1] !== 0xd8 || video[4] !== 0x66 || video[5] !== 0x74) {
+              if (
+                cover.length < 1024 ||
+                video.length < 1024 ||
+                cover[0] !== 0xff ||
+                cover[1] !== 0xd8 ||
+                video[4] !== 0x66 ||
+                video[5] !== 0x74
+              ) {
                 throw new Error('Motion Photo 结构不完整')
               }
               return {
@@ -801,55 +854,122 @@ const { title, description, image } = Astro.props
               }
             })
           motionCache[url] = task
-          task.catch(function () { delete motionCache[url] })
+          task.catch(function () {
+            delete motionCache[url]
+          })
           return task
         }
 
         // ---- 实况播放器生命周期 ----
         var activePlayers = []
         var currentPlayer = null
-        function isCurrentSlide(player) { return !!(player.closest && player.closest('.is-selected')) }
+        function isCurrentSlide(player) {
+          return !!(player.closest && player.closest('.is-selected'))
+        }
         function showSpin(player) {
           if (player.querySelector('.lp-spin')) return
-          var s = document.createElement('div'); s.className = 'lp-spin'; player.append(s)
+          var s = document.createElement('div')
+          s.className = 'lp-spin'
+          player.append(s)
         }
-        function hideSpin(player) { var s = player.querySelector('.lp-spin'); if (s) s.parentNode.removeChild(s) }
+        function hideSpin(player) {
+          var s = player.querySelector('.lp-spin')
+          if (s) s.parentNode.removeChild(s)
+        }
         function setCover(player, url, caption) {
           var img = player.querySelector('.lp-cover')
-          if (!img) { img = document.createElement('img'); img.className = 'lp-cover'; img.alt = ''; player.insertBefore(img, player.firstChild) }
+          if (!img) {
+            img = document.createElement('img')
+            img.className = 'lp-cover'
+            img.alt = ''
+            player.insertBefore(img, player.firstChild)
+          }
           if (img.getAttribute('src') !== url) img.setAttribute('src', url)
           if (caption && !player.querySelector('.lp-caption')) {
-            var c = document.createElement('div'); c.className = 'lp-caption'; c.textContent = caption; player.append(c)
+            var c = document.createElement('div')
+            c.className = 'lp-caption'
+            c.textContent = caption
+            player.append(c)
           }
         }
         function attachVideo(player, url) {
           var node = document.createElement('video')
           node.className = 'lp-video is-waiting'
-          node.muted = true; node.setAttribute('muted', ''); node.setAttribute('autoplay', ''); node.setAttribute('loop', ''); node.setAttribute('playsinline', '')
-          node.playsInline = true; node.loop = true; node.preload = 'auto'; node.src = url
-          node.addEventListener('canplay', function onReady() { node.removeEventListener('canplay', onReady); node.classList.remove('is-waiting'); hideSpin(player) })
-          node.addEventListener('error', function () { hideSpin(player) })
+          node.muted = true
+          node.setAttribute('muted', '')
+          node.setAttribute('autoplay', '')
+          node.setAttribute('loop', '')
+          node.setAttribute('playsinline', '')
+          node.playsInline = true
+          node.loop = true
+          node.preload = 'auto'
+          node.src = url
+          node.addEventListener('canplay', function onReady() {
+            node.removeEventListener('canplay', onReady)
+            node.classList.remove('is-waiting')
+            hideSpin(player)
+          })
+          node.addEventListener('error', function () {
+            hideSpin(player)
+          })
           player.append(node)
           var record = { player: player, video: node }
           activePlayers.push(record)
-          if (isCurrentSlide(player)) { var p = node.play(); if (p && p.catch) p.catch(function () {}) }
+          if (isCurrentSlide(player)) {
+            var p = node.play()
+            if (p && p.catch) p.catch(function () {})
+          }
         }
         function resumeVideo(record) {
-          if (!activePlayers.some(function (r) { return r.player === record.player })) activePlayers.push(record)
-          record.video.classList.add('is-waiting'); showSpin(record.player)
-          try { record.video.currentTime = 0 } catch (e) {}
+          if (
+            !activePlayers.some(function (r) {
+              return r.player === record.player
+            })
+          )
+            activePlayers.push(record)
+          record.video.classList.add('is-waiting')
+          showSpin(record.player)
+          try {
+            record.video.currentTime = 0
+          } catch (e) {}
           var p = record.video.play()
-          if (p && p.catch) p.then(function () { record.video.classList.remove('is-waiting'); hideSpin(record.player) }, function () { record.video.classList.remove('is-waiting'); hideSpin(record.player) })
+          if (p && p.catch)
+            p.then(
+              function () {
+                record.video.classList.remove('is-waiting')
+                hideSpin(record.player)
+              },
+              function () {
+                record.video.classList.remove('is-waiting')
+                hideSpin(record.player)
+              },
+            )
         }
-        function stopPlayer(record) { try { if (record.video) { record.video.pause(); record.video.removeAttribute('autoplay') } } catch (e) {} hideSpin(record.player) }
+        function stopPlayer(record) {
+          try {
+            if (record.video) {
+              record.video.pause()
+              record.video.removeAttribute('autoplay')
+            }
+          } catch (e) {}
+          hideSpin(record.player)
+        }
         function prunePlayers() {
           for (var i = activePlayers.length - 1; i >= 0; i--) {
             var r = activePlayers[i]
-            var keep = r.player.isConnected && (r.player === currentPlayer || isCurrentSlide(r.player))
-            if (!keep) { stopPlayer(r); activePlayers.splice(i, 1) }
+            var keep =
+              r.player.isConnected && (r.player === currentPlayer || isCurrentSlide(r.player))
+            if (!keep) {
+              stopPlayer(r)
+              activePlayers.splice(i, 1)
+            }
           }
         }
-        function stopAll() { activePlayers.forEach(stopPlayer); activePlayers.length = 0; currentPlayer = null }
+        function stopAll() {
+          activePlayers.forEach(stopPlayer)
+          activePlayers.length = 0
+          currentPlayer = null
+        }
 
         // 从触发元素 dataset 读素材（DOM 解耦：绝不读缩略图 DOM）
         function getAssets(slide) {
@@ -865,9 +985,16 @@ const { title, description, image } = Astro.props
         }
         function resolveAssets(assets) {
           var coverAbs = assets.cover ? absolutize(assets.cover) : null
-          if (assets.video) return Promise.resolve({ cover: coverAbs, video: absolutize(assets.video) })
-          if (assets.pvt) return unpackPvt(absolutize(assets.pvt)).then(function (p) { return { cover: p.cover || coverAbs, video: p.video } })
-          if (assets.motion) return unpackMotion(absolutize(assets.motion)).then(function (p) { return { cover: p.cover || coverAbs, video: p.video } })
+          if (assets.video)
+            return Promise.resolve({ cover: coverAbs, video: absolutize(assets.video) })
+          if (assets.pvt)
+            return unpackPvt(absolutize(assets.pvt)).then(function (p) {
+              return { cover: p.cover || coverAbs, video: p.video }
+            })
+          if (assets.motion)
+            return unpackMotion(absolutize(assets.motion)).then(function (p) {
+              return { cover: p.cover || coverAbs, video: p.video }
+            })
           return Promise.resolve({ cover: coverAbs, video: null })
         }
         // 灯箱一开就暂停缩略图上的 Heo 播放（避免在遮罩底下继续跑）
@@ -875,29 +1002,36 @@ const { title, description, image } = Astro.props
           try {
             var el = slide && slide.triggerEl
             var img = el && el.querySelector('img.live-photo')
-            if (img && img.parentNode && img.parentNode._heoLiveCtrl) window.HeoLivePhoto.reset(img.parentNode)
+            if (img && img.parentNode && img.parentNode._heoLiveCtrl)
+              window.HeoLivePhoto.reset(img.parentNode)
           } catch (e) {}
         }
         function mountLivePlayer(player, slide) {
           pauseThumb(slide)
           var existing = player.querySelector('.lp-video')
-          if (existing) { resumeVideo({ player: player, video: existing }); return }
+          if (existing) {
+            resumeVideo({ player: player, video: existing })
+            return
+          }
           var assets = getAssets(slide)
           // 有 data-pvt 或 data-motion 时不预铺 cover：解包器自己出封面（同一份
           // 字节已缓存），避免先下原图再加下解包件
-          if (!assets.pvt && !assets.motion && assets.cover) setCover(player, absolutize(assets.cover), assets.caption)
+          if (!assets.pvt && !assets.motion && assets.cover)
+            setCover(player, absolutize(assets.cover), assets.caption)
           showSpin(player)
-          resolveAssets(assets).then(function (r) {
-            if (!player.isConnected) return
-            if (r.cover) setCover(player, r.cover, assets.caption)
-            if (r.video) attachVideo(player, r.video)
-            else hideSpin(player)
-          }).catch(function (e) {
-            // pvt 解包失败时回退到 data-cover（原图 jpg）
-            if (assets.cover) setCover(player, absolutize(assets.cover), assets.caption)
-            hideSpin(player)
-            console.warn('[live-gallery] 实况素材加载失败：', e)
-          })
+          resolveAssets(assets)
+            .then(function (r) {
+              if (!player.isConnected) return
+              if (r.cover) setCover(player, r.cover, assets.caption)
+              if (r.video) attachVideo(player, r.video)
+              else hideSpin(player)
+            })
+            .catch(function (e) {
+              // pvt 解包失败时回退到 data-cover（原图 jpg）
+              if (assets.cover) setCover(player, absolutize(assets.cover), assets.caption)
+              hideSpin(player)
+              console.warn('[live-gallery] 实况素材加载失败：', e)
+            })
         }
         // contentReady / attachSlideEl 入口：扫描参数找带 .el 的 slide
         function activateSlide() {
@@ -905,7 +1039,7 @@ const { title, description, image } = Astro.props
             var candidate = arguments[i]
             if (!candidate || !candidate.el || !candidate.el.querySelector) continue
             var player = candidate.el.querySelector('.lp-player')
-            if (!player) continue            // 非实况 slide（无骨架）→ 跳过，走默认 image 灯箱
+            if (!player) continue // 非实况 slide（无骨架）→ 跳过，走默认 image 灯箱
             currentPlayer = player
             mountLivePlayer(player, candidate)
             break
@@ -917,36 +1051,65 @@ const { title, description, image } = Astro.props
         // 三种实况形态：pvt（本地包）、motion（远端单文件）、video（封面/视频分离）
         var LIVE_SEL =
           '[data-fancybox][data-pvt], [data-fancybox][data-motion], [data-fancybox][data-video]'
-        var touchStartAt = 0, touchMoved = false, suppressNextClick = false
-        document.addEventListener('touchstart', function (e) {
-          if (!e.target.closest || !e.target.closest(LIVE_SEL)) return
-          touchStartAt = Date.now(); touchMoved = false
-        }, { passive: true, capture: true })
-        document.addEventListener('touchmove', function () { touchMoved = true }, { passive: true, capture: true })
-        ;['touchend', 'touchcancel'].forEach(function (t) {
-          document.addEventListener(t, function (e) {
-            if (!e.target.closest || !e.target.closest(LIVE_SEL)) return
-            if (touchStartAt && Date.now() - touchStartAt >= 300 && !touchMoved) suppressNextClick = true
-            touchStartAt = 0
-          }, { passive: true, capture: true })
-        })
-        document.addEventListener('click', function (e) {
-          if (!suppressNextClick) return
+        var touchStartAt = 0,
+          touchMoved = false,
           suppressNextClick = false
-          if (!e.target.closest || !e.target.closest(LIVE_SEL)) return
-          e.preventDefault(); e.stopPropagation()
-        }, true)
+        document.addEventListener(
+          'touchstart',
+          function (e) {
+            if (!e.target.closest || !e.target.closest(LIVE_SEL)) return
+            touchStartAt = Date.now()
+            touchMoved = false
+          },
+          { passive: true, capture: true },
+        )
+        document.addEventListener(
+          'touchmove',
+          function () {
+            touchMoved = true
+          },
+          { passive: true, capture: true },
+        )
+        ;['touchend', 'touchcancel'].forEach(function (t) {
+          document.addEventListener(
+            t,
+            function (e) {
+              if (!e.target.closest || !e.target.closest(LIVE_SEL)) return
+              if (touchStartAt && Date.now() - touchStartAt >= 300 && !touchMoved)
+                suppressNextClick = true
+              touchStartAt = 0
+            },
+            { passive: true, capture: true },
+          )
+        })
+        document.addEventListener(
+          'click',
+          function (e) {
+            if (!suppressNextClick) return
+            suppressNextClick = false
+            if (!e.target.closest || !e.target.closest(LIVE_SEL)) return
+            e.preventDefault()
+            e.stopPropagation()
+          },
+          true,
+        )
 
         // ---- Fancybox 初始化 ----
         function initFancybox() {
           if (typeof Fancybox === 'undefined') return
           if (!document.querySelector('[data-fancybox]')) return
-          try { Fancybox.unbind(document.body) } catch (e) {}
+          try {
+            Fancybox.unbind(document.body)
+          } catch (e) {}
           // 给实况项注入空骨架 data-html（Fancybox 据此把骨架渲染进 slide 并触发
           // Carousel.contentReady；JS 设避免 SSR 属性转义问题）
-          document.querySelectorAll('[data-fancybox][data-pvt]:not([data-html]), [data-fancybox][data-motion]:not([data-html]), [data-fancybox][data-video]:not([data-html])').forEach(function (el) {
-            el.setAttribute('data-html', '<div class="lp-player"></div>')
-          })
+          document
+            .querySelectorAll(
+              '[data-fancybox][data-pvt]:not([data-html]), [data-fancybox][data-motion]:not([data-html]), [data-fancybox][data-video]:not([data-html])',
+            )
+            .forEach(function (el) {
+              el.setAttribute('data-html', '<div class="lp-player"></div>')
+            })
           Fancybox.bind('[data-fancybox]', {
             touch: { vertical: true },
             Carousel: { infinite: true },
@@ -958,8 +1121,12 @@ const { title, description, image } = Astro.props
             on: {
               'Carousel.contentReady': activateSlide,
               'Carousel.attachSlideEl': activateSlide,
-              'Carousel.change': function () { prunePlayers() },
-              'Carousel.settle': function () { prunePlayers() },
+              'Carousel.change': function () {
+                prunePlayers()
+              },
+              'Carousel.settle': function () {
+                prunePlayers()
+              },
               backdropClick: function (_fancybox, event) {
                 var t = event.composedPath ? event.composedPath()[0] : event.target
                 if (t && t.closest && t.closest('.lp-player')) event.preventDefault()
@@ -974,8 +1141,12 @@ const { title, description, image } = Astro.props
         } else {
           initFancybox()
         }
-        document.addEventListener('swup:page:view', function () { setTimeout(initFancybox, 200) })
-        document.addEventListener('astro:page-load', function () { setTimeout(initFancybox, 200) })
+        document.addEventListener('swup:page:view', function () {
+          setTimeout(initFancybox, 200)
+        })
+        document.addEventListener('astro:page-load', function () {
+          setTimeout(initFancybox, 200)
+        })
       })()
     </script>
     <!-- LivePhoto 实况照片支持 -->
@@ -989,7 +1160,7 @@ const { title, description, image } = Astro.props
          标 data-swup-ignore-script：监听器挂 document，Swup 永不替换；
          不加会被每切一次页克隆重跑、监听器无限累加。 -->
     <script is:inline data-swup-ignore-script>
-      (function () {
+      ;(function () {
         var observer = null
         /* 并发上限：无限制地逐个 scan 会让 12 个 .pvt（1-2.6MB/个）同时下载+解压，
            既打满带宽又把 CPU 占满（页面卡死）。 */
@@ -1005,14 +1176,18 @@ const { title, description, image } = Astro.props
             var r = HeoLivePhoto.scan(item)
             if (r && r.then) r.then(done, done)
             else done()
-          } catch (e) { done() }
+          } catch (e) {
+            done()
+          }
         }
         function setup() {
           generation++
           var gen = generation
           queue = []
           active = 0
-          var liveImgs = document.querySelectorAll('img[data-live-pvt], img[data-live-motion], img[data-live-video]')
+          var liveImgs = document.querySelectorAll(
+            'img[data-live-pvt], img[data-live-motion], img[data-live-video]',
+          )
           if (!liveImgs.length) return
           // 切页后旧 observer 失效，重建
           if (observer) observer.disconnect()
@@ -1037,29 +1212,39 @@ const { title, description, image } = Astro.props
               })
             }
           }
-          observer = new IntersectionObserver(function (entries) {
-            if (gen !== generation) return
-            entries.forEach(function (entry) {
-              if (!entry.isIntersecting) return
-              observer.unobserve(entry.target)   // 只入队一次
-              queue.push(entry.target)
-            })
-            flush()
-          }, {
-            root: null,
-            // rootMargin:0 —— 只解包真正滚进视口的那张。之前 200px 会把首屏全部项
-            // 一次性推入队列并发下载，是页面加载慢的主因。
-            rootMargin: '0px',
-            threshold: 0
-          })
+          observer = new IntersectionObserver(
+            function (entries) {
+              if (gen !== generation) return
+              entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return
+                observer.unobserve(entry.target) // 只入队一次
+                queue.push(entry.target)
+              })
+              flush()
+            },
+            {
+              root: null,
+              // rootMargin:0 —— 只解包真正滚进视口的那张。之前 200px 会把首屏全部项
+              // 一次性推入队列并发下载，是页面加载慢的主因。
+              rootMargin: '0px',
+              threshold: 0,
+            },
+          )
           liveImgs.forEach(function (img) {
             var item = img.closest('[data-fancybox]') || img.parentElement
             if (item && !img.dataset.liveReady) observer.observe(item)
           })
         }
-        document.addEventListener('swup:page:view', function () { setTimeout(setup, 200) })
-        document.addEventListener('astro:page-load', function () { setTimeout(setup, 200) })
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(setup, 0) })
+        document.addEventListener('swup:page:view', function () {
+          setTimeout(setup, 200)
+        })
+        document.addEventListener('astro:page-load', function () {
+          setTimeout(setup, 200)
+        })
+        if (document.readyState === 'loading')
+          document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(setup, 0)
+          })
         else setTimeout(setup, 0)
       })()
     </script>

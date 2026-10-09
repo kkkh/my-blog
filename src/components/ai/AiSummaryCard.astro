@@ -16,22 +16,31 @@ const { summary, from } = item
 
 <div class="card-glass ai-summary-card cursor-target rounded-2xl p-5">
   <div class="mb-2.5 flex items-center gap-2">
-    <span class="flex size-6 items-center justify-center rounded-lg text-white" style="background: linear-gradient(135deg, #027ad5, #f2f5f4cc)">
+    <span
+      class="flex size-6 items-center justify-center rounded-lg text-white"
+      style="background: linear-gradient(135deg, #027ad5, #f2f5f4cc)"
+    >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M12 2a2 2 0 0 1 2 2v.5A6 6 0 0 1 18 10.5v3a6 6 0 0 1-6 6 6 6 0 0 1-6-6v-3a6 6 0 0 1 4-5.657V4a2 2 0 0 1 2-2Zm-1 17.94V20a1 1 0 1 0 2 0v-.06A7 7 0 0 1 19 13v-1h-2v1a5 5 0 0 1-10 0v-1H5v1a7 7 0 0 0 6 6.94Z" fill="currentColor"/>
+        <path
+          d="M12 2a2 2 0 0 1 2 2v.5A6 6 0 0 1 18 10.5v3a6 6 0 0 1-6 6 6 6 0 0 1-6-6v-3a6 6 0 0 1 4-5.657V4a2 2 0 0 1 2-2Zm-1 17.94V20a1 1 0 1 0 2 0v-.06A7 7 0 0 1 19 13v-1h-2v1a5 5 0 0 1-10 0v-1H5v1a7 7 0 0 0 6 6.94Z"
+          fill="currentColor"></path>
       </svg>
     </span>
     <p class="text-sm font-semibold tracking-tight">AI 摘要</p>
-    {from === 'ai' && (
-      <span class="ml-auto rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
-        ✨ AI 生成
-      </span>
-    )}
-    {from === 'fallback' && (
-      <span class="ml-auto rounded-full px-2 py-0.5 text-[11px] font-medium opacity-50">
-        文章简介
-      </span>
-    )}
+    {
+      from === 'ai' && (
+        <span class="ml-auto rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
+          ✨ AI 生成
+        </span>
+      )
+    }
+    {
+      from === 'fallback' && (
+        <span class="ml-auto rounded-full px-2 py-0.5 text-[11px] font-medium opacity-50">
+          文章简介
+        </span>
+      )
+    }
   </div>
   <p class="text-sm leading-relaxed opacity-75">{summary}</p>
 </div>

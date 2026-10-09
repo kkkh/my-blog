@@ -11,7 +11,17 @@ import { color as themeColor } from '@/config.json'
   现改为 HTML 内联脚本：HTML 解析期同步执行、零模块依赖、不受任何打包影响；
   纯原生 JS 实现 hex→rgb 与 RGB 插值（替代 chroma-js），行为与原实现一致。
 -->
-<script is:inline define:vars={{ accentList: themeColor.accent, bgPrimary: themeColor.bg.primary, bgSecondary: themeColor.bg.secondary, textPrimary: themeColor.text.primary, textSecondary: themeColor.text.secondary, borderPrimary: themeColor.border.primary }}>
+<script
+  is:inline
+  define:vars={{
+    accentList: themeColor.accent,
+    bgPrimary: themeColor.bg.primary,
+    bgSecondary: themeColor.bg.secondary,
+    textPrimary: themeColor.text.primary,
+    textSecondary: themeColor.text.secondary,
+    borderPrimary: themeColor.border.primary,
+  }}
+>
   ;(function () {
     // 根背景混合基线（与旧 chroma.mix 输入一致）
     var ROOT_BASE_LIGHT = [242, 245, 236] // rgb(242,245,236) 浅绿底
@@ -44,21 +54,49 @@ import { color as themeColor } from '@/config.json'
       var style = document.createElement('style')
       style.textContent =
         'html{' +
-        '--color-accent:' + rgbStr(al) + ';' +
-        '--color-bg-root:' + rgbStr(rootLight) + ';' +
-        '--color-bg-primary:' + rgbStr(hexToRgb(bgPrimary.light)) + ';' +
-        '--color-bg-secondary:' + rgbStr(hexToRgb(bgSecondary.light)) + ';' +
-        '--color-text-primary:' + rgbStr(hexToRgb(textPrimary.light)) + ';' +
-        '--color-text-secondary:' + rgbStr(hexToRgb(textSecondary.light)) + ';' +
-        '--color-border-primary:' + rgbStr(hexToRgb(borderPrimary.light)) + '}' +
+        '--color-accent:' +
+        rgbStr(al) +
+        ';' +
+        '--color-bg-root:' +
+        rgbStr(rootLight) +
+        ';' +
+        '--color-bg-primary:' +
+        rgbStr(hexToRgb(bgPrimary.light)) +
+        ';' +
+        '--color-bg-secondary:' +
+        rgbStr(hexToRgb(bgSecondary.light)) +
+        ';' +
+        '--color-text-primary:' +
+        rgbStr(hexToRgb(textPrimary.light)) +
+        ';' +
+        '--color-text-secondary:' +
+        rgbStr(hexToRgb(textSecondary.light)) +
+        ';' +
+        '--color-border-primary:' +
+        rgbStr(hexToRgb(borderPrimary.light)) +
+        '}' +
         "[data-theme='dark']{" +
-        '--color-accent:' + rgbStr(ad) + ';' +
-        '--color-bg-root:' + rgbStr(rootDark) + ';' +
-        '--color-bg-primary:' + rgbStr(hexToRgb(bgPrimary.dark)) + ';' +
-        '--color-bg-secondary:' + rgbStr(hexToRgb(bgSecondary.dark)) + ';' +
-        '--color-text-primary:' + rgbStr(hexToRgb(textPrimary.dark)) + ';' +
-        '--color-text-secondary:' + rgbStr(hexToRgb(textSecondary.dark)) + ';' +
-        '--color-border-primary:' + rgbStr(hexToRgb(borderPrimary.dark)) + '}'
+        '--color-accent:' +
+        rgbStr(ad) +
+        ';' +
+        '--color-bg-root:' +
+        rgbStr(rootDark) +
+        ';' +
+        '--color-bg-primary:' +
+        rgbStr(hexToRgb(bgPrimary.dark)) +
+        ';' +
+        '--color-bg-secondary:' +
+        rgbStr(hexToRgb(bgSecondary.dark)) +
+        ';' +
+        '--color-text-primary:' +
+        rgbStr(hexToRgb(textPrimary.dark)) +
+        ';' +
+        '--color-text-secondary:' +
+        rgbStr(hexToRgb(textSecondary.dark)) +
+        ';' +
+        '--color-border-primary:' +
+        rgbStr(hexToRgb(borderPrimary.dark)) +
+        '}'
       document.head.appendChild(style)
     }
 

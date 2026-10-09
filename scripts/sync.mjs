@@ -19,8 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..') // astro-gyoza 根目录
 const REMOTE_URL = 'https://github.com/rumian0/astro.git'
 const TARGET_BRANCH = 'main'
-const PROXY_CMD =
-  'C:\\Program Files\\Git\\mingw64\\bin\\connect.exe -S 127.0.0.1:10808 -5 %h %p'
+const PROXY_CMD = 'C:\\Program Files\\Git\\mingw64\\bin\\connect.exe -S 127.0.0.1:10808 -5 %h %p'
 
 // 白文件：以下路径必须被 .gitignore 排除，否则中止同步（防止误推构建产物/本地状态）
 const MUST_IGNORE = ['dist', 'node_modules', '.astro', '.reasonix', 'reasonix.toml', '.env']
@@ -73,7 +72,7 @@ run('git add -A')
 const now = new Date()
 const pad = (n) => String(n).padStart(2, '0')
 const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(
-  now.getHours()
+  now.getHours(),
 )}-${pad(now.getMinutes())}`
 const msg = (process.argv[2] || `chore: sync ${dateStr}`).replace(/"/g, "'")
 console.log(`📝 提交信息：${msg}`)

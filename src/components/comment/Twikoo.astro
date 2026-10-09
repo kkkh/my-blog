@@ -112,12 +112,18 @@
     padding: 1rem !important;
     border: 1px solid color-mix(in srgb, var(--color-border-primary) 20%, transparent) !important;
     border-radius: 1rem !important;
-    background: color-mix(in srgb, var(--color-text-primary) 2%, var(--color-bg-primary)) !important;
+    background: color-mix(
+      in srgb,
+      var(--color-text-primary) 2%,
+      var(--color-bg-primary)
+    ) !important;
     /* 关键修复：Twikoo 默认 word-break: break-all，中文昵称会被逐字断成"竖排"；
        改回 normal 后中文只在自然位置换行，配合第 4 节的整行 meta 彻底杜绝竖排 */
     word-break: normal !important;
     overflow-wrap: anywhere !important;
-    transition: border-color 0.25s ease, background-color 0.25s ease;
+    transition:
+      border-color 0.25s ease,
+      background-color 0.25s ease;
   }
   [data-engine='twikoo'] .tk-comment:hover {
     border-color: color-mix(in srgb, var(--color-accent) 22%, transparent) !important;
@@ -184,25 +190,26 @@
        （bundle 700270 附近实测），两者都带 .tk-nick → 每一位用户的昵称下都有波浪线，
        不会漏掉普通访客。颜色取 --color-accent（AccentColorInjector 每页随机注入）
        → 波浪线颜色随每页随机强调色变化。浅色模式 62% 不透明度 + 1.6px 明显 */
-    text-decoration:
-      underline wavy
-      color-mix(in srgb, var(--color-accent) 62%, transparent) !important;
+    text-decoration: underline wavy color-mix(in srgb, var(--color-accent) 62%, transparent) !important;
     text-decoration-thickness: 1.6px !important;
     text-underline-offset: 4px !important;
     text-decoration-skip-ink: none !important;
-    transition: text-shadow 0.25s ease, transform 0.25s ease !important;
+    transition:
+      text-shadow 0.25s ease,
+      transform 0.25s ease !important;
   }
   /* 暗色模式：降不透明度 + 减细线宽，深色底上柔和不刺眼 */
   [data-theme='dark'] [data-engine='twikoo'] .tk-nick {
-    text-decoration-color:
-      color-mix(in srgb, var(--color-accent) 36%, transparent) !important;
+    text-decoration-color: color-mix(in srgb, var(--color-accent) 36%, transparent) !important;
     text-decoration-thickness: 1.2px !important;
   }
   /* 昵称链接：只负责「可点」的视觉（辉光 + 悬停上浮），波浪线本身由 .tk-nick 统一提供 */
   [data-engine='twikoo'] .tk-nick-link {
     color: var(--color-accent) !important;
     text-shadow: 0 0 14px color-mix(in srgb, var(--color-accent) 28%, transparent) !important;
-    transition: text-shadow 0.25s ease, transform 0.25s ease !important;
+    transition:
+      text-shadow 0.25s ease,
+      transform 0.25s ease !important;
   }
   [data-theme='dark'] [data-engine='twikoo'] .tk-nick-link {
     text-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 18%, transparent) !important;
@@ -214,8 +221,7 @@
   }
   /* 暗色模式悬停也别把波浪线打太实 */
   [data-theme='dark'] [data-engine='twikoo'] .tk-nick-link:hover {
-    text-decoration-color:
-      color-mix(in srgb, var(--color-accent) 58%, transparent) !important;
+    text-decoration-color: color-mix(in srgb, var(--color-accent) 58%, transparent) !important;
   }
   /* 子回复里的昵称：官方默认 0.9em，这里统一给 0.86rem 保持层级 */
   [data-engine='twikoo'] .tk-replies .tk-nick {
@@ -284,12 +290,7 @@
        刻意不挂 mcy-tag-sweep 动画：那条 keyframe 只挪 background-position，
        高光层 220% 尺寸看不出动，但 0.72em 的皇冠会被一起带着在药丸里横滑 */
     background-image:
-      linear-gradient(
-        115deg,
-        transparent 35%,
-        rgba(255, 255, 255, 0.42) 50%,
-        transparent 65%
-      ),
+      linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.42) 50%, transparent 65%),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0,0,24,24' fill='%230b1020'%3E%3Cpath d='M12,2.2l2.9,6.2 6.8,.7-5.1,4.6 1.4,6.7L12,17.4 6,20.4l1.4-6.7L2.3,9.1l6.8-.7z'/%3E%3C/svg%3E"),
       linear-gradient(
         115deg,
@@ -297,8 +298,14 @@
         color-mix(in srgb, var(--color-accent) 45%, #fff) 50%,
         color-mix(in srgb, var(--color-accent) 88%, #000)
       );
-    background-size: 220% 100%, 0.72em 0.72em, 100% 100%;
-    background-position: 0 0, 0.44rem center, 0 0;
+    background-size:
+      220% 100%,
+      0.72em 0.72em,
+      100% 100%;
+    background-position:
+      0 0,
+      0.44rem center,
+      0 0;
     background-repeat: no-repeat, no-repeat, no-repeat;
     box-shadow:
       0 1px 6px color-mix(in srgb, var(--color-accent) 45%, transparent),
@@ -315,7 +322,9 @@
         color-mix(in srgb, var(--color-accent) 45%, #fff) 50%,
         color-mix(in srgb, var(--color-accent) 88%, #000)
       ) !important;
-    background-size: 220% 100%, 100% 100% !important;
+    background-size:
+      220% 100%,
+      100% 100% !important;
     background-repeat: no-repeat, no-repeat !important;
     animation: mcy-tag-sweep 3.2s linear infinite !important;
     box-shadow:
@@ -331,7 +340,9 @@
     background:
       linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.32) 50%, transparent 65%),
       linear-gradient(115deg, #ff9a5c, #ff4d5e 52%, #ff2f7d) !important;
-    background-size: 220% 100%, 100% 100% !important;
+    background-size:
+      220% 100%,
+      100% 100% !important;
     background-repeat: no-repeat, no-repeat !important;
     animation: mcy-tag-sweep 3.6s linear infinite !important;
     box-shadow: 0 1px 6px rgba(255, 77, 94, 0.42) !important;
@@ -345,7 +356,9 @@
     background:
       linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.32) 50%, transparent 65%),
       linear-gradient(115deg, #ffe082, #ffb02e 55%, #ff8a3d) !important;
-    background-size: 220% 100%, 100% 100% !important;
+    background-size:
+      220% 100%,
+      100% 100% !important;
     background-repeat: no-repeat, no-repeat !important;
     animation: mcy-tag-sweep 4s linear infinite !important;
     box-shadow: 0 1px 6px rgba(255, 176, 46, 0.4) !important;
@@ -359,7 +372,9 @@
     background:
       linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.32) 50%, transparent 65%),
       linear-gradient(115deg, #5ab8ff, #2f86ff 55%, #6d5efc) !important;
-    background-size: 220% 100%, 100% 100% !important;
+    background-size:
+      220% 100%,
+      100% 100% !important;
     background-repeat: no-repeat, no-repeat !important;
     animation: mcy-tag-sweep 3.4s linear infinite !important;
     box-shadow: 0 1px 6px rgba(47, 134, 255, 0.42) !important;
@@ -475,7 +490,9 @@
     border-radius: 0.75rem !important;
     border: 1px solid color-mix(in srgb, var(--color-border-primary) 15%, transparent) !important;
     overflow: hidden;
-    transition: transform 0.2s ease, border-color 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      border-color 0.2s ease;
   }
   [data-engine='twikoo'] .tk-avatar .tk-avatar-img {
     width: 100% !important;

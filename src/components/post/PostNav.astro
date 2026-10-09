@@ -25,10 +25,7 @@ const { prev, next, class: className } = Astro.props
   <div>
     {
       next && (
-        <a
-          class="flex items-baseline justify-end gap-2 hover:text-accent"
-          href={getPostUrl(next)}
-        >
+        <a class="flex items-baseline justify-end gap-2 hover:text-accent" href={getPostUrl(next)}>
           <span>{next.data.title}</span>
           <i class="iconfont icon-arrow-right" />
         </a>

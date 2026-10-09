@@ -36,8 +36,8 @@ const { postPath, postTitle, class: className } = Astro.props
     stroke-linejoin="round"
     aria-hidden="true"
   >
-    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-    <circle cx="12" cy="12" r="3" />
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+    <circle cx="12" cy="12" r="3"></circle>
   </svg>
   <span>阅读量</span>
   <span class="read-count-value tabular-nums">--</span>
@@ -91,17 +91,13 @@ const { postPath, postTitle, class: className } = Astro.props
 
     // 将缓存/最新的 map 应用到当前页面所有未加载节点
     function applyMap(map) {
-      const nodes = Array.prototype.slice.call(
-        document.querySelectorAll('.read-count[data-path]'),
-      )
+      const nodes = Array.prototype.slice.call(document.querySelectorAll('.read-count[data-path]'))
       nodes
         .filter((el) => el.getAttribute('data-state') !== DONE)
         .forEach((el) => {
           const key = normalizePath(el.getAttribute('data-path') || '')
           const value =
-            map && Object.prototype.hasOwnProperty.call(map, key)
-              ? format(map[key])
-              : PLACEHOLDER
+            map && Object.prototype.hasOwnProperty.call(map, key) ? format(map[key]) : PLACEHOLDER
           const node = el.querySelector('.read-count-value')
           if (node) node.textContent = value
           el.setAttribute('data-state', DONE)
@@ -159,9 +155,9 @@ const { postPath, postTitle, class: className } = Astro.props
     // 拉取当前页所有未加载节点（Swup 切页后新页面节点会走缓存/重新请求）
     function callLoad() {
       if (document.readyState === 'loading') return
-      const pending = Array.prototype.slice.call(
-        document.querySelectorAll('.read-count[data-path]'),
-      ).filter((el) => el.getAttribute('data-state') !== DONE)
+      const pending = Array.prototype.slice
+        .call(document.querySelectorAll('.read-count[data-path]'))
+        .filter((el) => el.getAttribute('data-state') !== DONE)
       if (!pending.length) return
       load()
     }

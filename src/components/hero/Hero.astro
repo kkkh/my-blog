@@ -23,7 +23,7 @@ import { SocialList } from './SocialList'
 
 // 终端提示符三段（参考站 SITE.heroTerminalPrompt）
 const PROMPT_PREFIX = '~'
-const PROMPT_PATH = '/mingcy'
+const PROMPT_PATH = '/chaochao'
 const PROMPT_SUFFIX = '$'
 
 // 「Written by」跳转地址：取首个社交链接（GitHub），无则回退站点域名
@@ -33,17 +33,21 @@ const socials = hero.socials ?? []
 
 <section
   id="hero"
-  class="hero-section relative flex min-h-[72vh] items-center pb-10 pt-14 sm:min-h-[75vh] sm:pt-16">
+  class="hero-section relative flex min-h-[72vh] items-center pb-10 pt-14 sm:min-h-[75vh] sm:pt-16"
+>
   <div
-    class="relative z-10 mx-auto grid w-full max-w-[950px] xl:max-w-[1100px] items-center gap-10 px-4 md:px-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
+    class="relative z-10 mx-auto grid w-full max-w-[950px] xl:max-w-[1100px] items-center gap-10 px-4 md:px-8 lg:grid-cols-[minmax(0,1fr)_16rem]"
+  >
     <!-- 左：文字区 -->
     <div class="min-w-0">
       <!-- Terminal prompt badge -->
       <div
-        class="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-secondary/20 px-3.5 py-1.5 font-mono text-xs sm:text-sm">
+        class="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-secondary/20 px-3.5 py-1.5 font-mono text-xs sm:text-sm"
+      >
         <span class="relative flex h-2 w-2">
           <span
-            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60"></span>
+            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60"
+          ></span>
           <span class="relative inline-flex h-2 w-2 rounded-full bg-accent"></span>
         </span>
         <span class="text-accent">{PROMPT_PREFIX}</span>
@@ -53,14 +57,16 @@ const socials = hero.socials ?? []
 
       <!-- Title -->
       <h1
-        class="hero-title mb-3 text-5xl font-bold leading-[1.1] tracking-tight sm:text-[3.75rem] lg:text-[4.5rem]">
+        class="hero-title mb-3 text-5xl font-bold leading-[1.1] tracking-tight sm:text-[3.75rem] lg:text-[4.5rem]"
+      >
         {hero.name}
         <a
           target="_blank"
           href="/rss.xml"
           class="ml-1 inline-block align-middle"
           aria-label="RSS Feed"
-          title="RSS Feed">
+          title="RSS Feed"
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="22"
@@ -71,7 +77,8 @@ const socials = hero.socials ?? []
             stroke-linecap="round"
             stroke-linejoin="round"
             class="stroke-accent stroke-3 opacity-40 transition-opacity duration-300 hover:opacity-100"
-            aria-hidden="true">
+            aria-hidden="true"
+          >
             <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
             <path d="M5 19m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"></path>
             <path d="M4 4a16 16 0 0 1 16 16"></path>
@@ -82,7 +89,7 @@ const socials = hero.socials ?? []
 
       <!-- Description -->
       <p class="mt-7 max-w-2xl text-base leading-relaxed opacity-75 sm:text-lg">
-        {hero.description} | {hero.bio}记录编程、网络安全与生活的点滴。
+        {hero.description} | {hero.bio}海内存知己，天涯若比邻。
       </p>
       <div class="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
         <p class="flex-shrink-0 text-sm opacity-50">
@@ -91,7 +98,8 @@ const socials = hero.socials ?? []
             class="font-medium underline decoration-dashed underline-offset-4 hover:text-accent"
             href={profileUrl}
             target="_blank"
-            rel="noopener noreferrer">{author.name}</a>
+            rel="noopener noreferrer">{author.name}</a
+          >
         </p>
 
         {
@@ -109,14 +117,16 @@ const socials = hero.socials ?? []
       <div class="relative mx-auto size-48 xl:size-64">
         <div class="hero-avatar-ring" aria-hidden="true"></div>
         <div
-          class="relative size-full overflow-hidden rounded-full border border-primary/40 bg-secondary/5 shadow-2xl shadow-accent/10">
+          class="relative size-full overflow-hidden rounded-full border border-primary/40 bg-secondary/5 shadow-2xl shadow-accent/10"
+        >
           <img
             src={author.avatar}
             alt={author.name}
             class="size-full object-cover"
             loading="eager"
             decoding="async"
-            referrerpolicy="no-referrer" />
+            referrerpolicy="no-referrer"
+          />
         </div>
       </div>
     </div>

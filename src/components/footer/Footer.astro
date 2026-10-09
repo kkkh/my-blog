@@ -15,7 +15,9 @@ const wordCount = await getAllPostsWordCount()
 const wordCountStr = (wordCount / 1000).toFixed(1) + 'k'
 ---
 
-<footer class="relative z-1 py-8 px-4 md:px-8 border-t border-primary text-secondary text-sm bg-primary/70">
+<footer
+  class="relative z-1 py-8 px-4 md:px-8 border-t border-primary text-secondary text-sm bg-primary/70"
+>
   <div class="text-center space-y-2">
     <div>
       Powered by
@@ -43,10 +45,10 @@ const wordCountStr = (wordCount / 1000).toFixed(1) + 'k'
     </div>
     <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
       <Link href="https://beian.miit.gov.cn/" data-no-swup>
-        <span>豫ICP备2026043588号</span>
+        <span>晋ICP备2023020746号</span>
       </Link>
       <span class="select-none opacity-50">|</span>
-      <Link href="https://beian.mps.gov.cn/#/index?code=65010602001220" data-no-swup>
+      <Link href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=14010602111139" data-no-swup>
         <img
           src="/beian/ghs.png"
           alt="公安备案图标"
@@ -54,7 +56,7 @@ const wordCountStr = (wordCount / 1000).toFixed(1) + 'k'
           height="20"
           class="inline-block align-[-3px]"
         />
-        <span>新公网安备65010602001220号</span>
+        <span>晋公网安备14010602111139</span>
       </Link>
     </div>
   </div>

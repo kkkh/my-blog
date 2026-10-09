@@ -145,13 +145,10 @@ function TocItem({
               transition={{ type: 'spring', stiffness: 500, damping: 22 }}
             />
           )}
-        <span
-          className={clsx(
-            'ml-[18px] transition-all duration-300',
-            isActive && 'ml-[22px]',
-          )}
-          style={{ paddingLeft: depth > 2 ? `${(depth - 2) * 0.6}rem` : undefined }}
-        >
+          <span
+            className={clsx('ml-[18px] transition-all duration-300', isActive && 'ml-[22px]')}
+            style={{ paddingLeft: depth > 2 ? `${(depth - 2) * 0.6}rem` : undefined }}
+          >
             {text}
           </span>
         </span>

@@ -6,10 +6,7 @@ interface Props {
   particleCount?: number
 }
 
-export default function ParticlesBg({
-  className = '',
-  particleCount = 40,
-}: Props) {
+export default function ParticlesBg({ className = '', particleCount = 40 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const cleanupRef = useRef<() => void>(() => {})
 
@@ -75,8 +72,10 @@ export default function ParticlesBg({
     window.addEventListener('resize', resize)
 
     const observer = new IntersectionObserver(
-      ([e]) => { isVisible = e.isIntersecting },
-      { threshold: 0 }
+      ([e]) => {
+        isVisible = e.isIntersecting
+      },
+      { threshold: 0 },
     )
     observer.observe(canvas)
 
@@ -95,7 +94,10 @@ export default function ParticlesBg({
     canvas.addEventListener('mouseleave', onLeave, { passive: true })
 
     function tick() {
-      if (!isVisible) { animId = requestAnimationFrame(tick); return }
+      if (!isVisible) {
+        animId = requestAnimationFrame(tick)
+        return
+      }
       ctx!.clearRect(0, 0, w, h)
 
       for (const p of ps) {
@@ -126,8 +128,10 @@ export default function ParticlesBg({
 
       for (let i = 0; i < ps.length; i++) {
         for (let j = i + 1; j < ps.length; j++) {
-          const a = ps[i], b = ps[j]
-          const dx = a.x - b.x, dy = a.y - b.y
+          const a = ps[i],
+            b = ps[j]
+          const dx = a.x - b.x,
+            dy = a.y - b.y
           const d = Math.sqrt(dx * dx + dy * dy)
           if (d < 100) {
             ctx!.beginPath()
@@ -164,6 +168,10 @@ export default function ParticlesBg({
   })
 
   return (
-    <canvas ref={canvasRef} className={`absolute inset-0 pointer-events-none ${className}`} aria-hidden="true" />
+    <canvas
+      ref={canvasRef}
+      className={`absolute inset-0 pointer-events-none ${className}`}
+      aria-hidden="true"
+    />
   )
 }

@@ -45,6 +45,9 @@ console.log(`\n🔀 设置默认分支 ${TARGET_BRANCH}`)
 execSync(`git branch -M ${TARGET_BRANCH}`, { stdio: 'inherit' })
 
 console.log('\n🚀 开始强制推送（走 connect.exe 代理）')
-execSync(`git push -f origin ${TARGET_BRANCH}`, { stdio: 'inherit', env: { ...process.env, GIT_PROXY_COMMAND: PROXY_CMD } })
+execSync(`git push -f origin ${TARGET_BRANCH}`, {
+  stdio: 'inherit',
+  env: { ...process.env, GIT_PROXY_COMMAND: PROXY_CMD },
+})
 
 console.log('\n🎉 部署任务完成！')

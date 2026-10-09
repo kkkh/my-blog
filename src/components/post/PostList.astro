@@ -11,11 +11,7 @@ const { posts } = Astro.props
 
 <div class="post-list">
   <div class="grid grid-cols-1 gap-12">
-    {
-      posts.map((post, i) => (
-        <PostCard entry={post} index={i} />
-      ))
-    }
+    {posts.map((post, i) => <PostCard entry={post} index={i} />)}
   </div>
 </div>
 
@@ -32,9 +28,9 @@ const { posts } = Astro.props
       document.addEventListener(
         'mousemove',
         (e) => {
-          const card = (e.target as Element | null)?.closest('.post-list .card-glass') as
-            | HTMLElement
-            | null
+          const card = (e.target as Element | null)?.closest(
+            '.post-list .card-glass',
+          ) as HTMLElement | null
           if (!card) return
           if (ticking) return
           ticking = true
