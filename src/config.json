@@ -9,7 +9,7 @@
     "appleTouchIcon": "/apple-touch-icon.png"
   },
   "author": {
-    "name": "o",
+    "name": "超超",
     "twitterId": "@umllm",
     "avatar": "https://image.43322.cn/image/x-avatar.png"
   },
@@ -118,7 +118,7 @@
     "wechat": "https://image.43322.cn/image/wechat.png"
   },
   "analytics": {
-    "enable": false,
+    "enable": true,
     "google": {
       "measurementId": ""
     },

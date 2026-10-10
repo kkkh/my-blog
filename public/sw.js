@@ -1,9 +1,9 @@
 /* astro-gyoza 背景图 Service Worker
  *
- * 目的：让 webp.mingcy.cn 随机壁纸跨刷新秒开，并后台静默预缓存下一张。
+ * 目的：让 webp.43322.cn 随机壁纸跨刷新秒开，并后台静默预缓存下一张。
  *
  * 为什么用 SW 而不是 IndexedDB：
- *   webp.mingcy.cn 不返回 CORS 头，fetch()/canvas 拿不到图片字节（同源策略硬限制）。
+ *   webp.43322.cn 不返回 CORS 头，fetch()/canvas 拿不到图片字节（同源策略硬限制）。
  *   SW 用 no-cors fetch 拿 opaque response —— JS 读不到内容，但 new Image / CSS url() 能渲染，
  *   且 cache.put 能存 opaque response。这是唯一不需要服务端配合的跨域图片缓存方案。
  *
@@ -17,11 +17,11 @@
  *   2. 刷新：SW 命中缓存立即返回（秒开）+ 后台 fetch 新图覆盖固定 KEY
  *   3. 下次刷新：返回上次后台更新的图（即"第二张"）+ 再后台更新
  *
- * Scope：只拦截 webp.mingcy.cn 请求，其他请求一律不碰。
+ * Scope：只拦截 webp.43322.cn 请求，其他请求一律不碰。
  */
 const CACHE = 'gyoza-bg-v1'
-const BG_KEY = 'https://webp.mingcy.cn/__bg_cache__' // 固定 KEY（不是真实 URL，仅作 cache 槽位标识）
-const BG_HOST = 'webp.mingcy.cn'
+const BG_KEY = 'https://webp.43322.cn/__bg_cache__' // 固定 KEY（不是真实 URL，仅作 cache 槽位标识）
+const BG_HOST = 'webp.43322.cn'
 
 self.addEventListener('install', () => {
   self.skipWaiting()
