@@ -48,14 +48,14 @@ const { title, description, image } = Astro.props
     <link rel="stylesheet" href="/fancybox/fancybox.min.css" />
   </head>
   <body>
-    <!-- 全局壁纸背景：webp.mingcy.cn 随机壁纸 + 高斯模糊 + 明暗遮罩，避免影响文字。
+    <!-- 全局壁纸背景：webp.43322.cn 随机壁纸 + 高斯模糊 + 明暗遮罩，避免影响文字。
          与右侧侧边栏卡片（.bg-shared-media）共用 :root 的 --random-bg-url，只下载一次 -->
     <div class="site-wallpaper" aria-hidden="true"></div>
     <div class="site-grain hidden-mobile pointer-events-none fixed inset-0 z-0" aria-hidden="true">
     </div>
     <script is:inline data-swup-ignore-script>
       // 注册背景图 Service Worker（仅 https/localhost，sw.js 在 public/ 根）
-      // SW 拦截 webp.mingcy.cn 请求，Stale-While-Revalidate + 固定 KEY 缓存：
+      // SW 拦截 webp.43322.cn 请求，Stale-While-Revalidate + 固定 KEY 缓存：
       //   首次走网络（慢，必然）；之后每次刷新命中缓存秒开，后台静默更新下一张。
       //   opaque response（no-cors）可被 cache.put 存、被 img/css 渲染，不需要 CORS 头。
       // data-swup-ignore-script：Swup 切页不重建 body，注册只跑一次。
@@ -76,7 +76,7 @@ const { title, description, image } = Astro.props
       //       SW 命中缓存时 new Image 秒级 load；首次访问无缓存走网络（慢，必然）。
       //       失败时静默，保持纯色占位（用户要的「没加载出来之前黑白纯色背景」）。
       // 全局背景层（.site-wallpaper）与右侧侧边栏卡片（.bg-shared-media）以前各自直连
-      // webp.mingcy.cn，同一张随机图被下载两次，且两次返回结果不同 → 画面割裂。
+      // webp.43322.cn，同一张随机图被下载两次，且两次返回结果不同 → 画面割裂。
       // 现在只发 1 次请求，把带时间戳的真实 URL 写入 :root 的 --random-bg-url，
       // 所有消费方统一读 background-image: var(--random-bg-url)。
       // Swup 切页不重建 body，此脚本只跑一次，SPA 导航期间壁纸保持稳定不闪变
