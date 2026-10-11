@@ -184,7 +184,7 @@ const { title, description, image } = Astro.props
 
         // 插件配置（fclite.js 初始化依赖，Swup 切页后 main 内的 UserConfig 不会重跑）
         window.UserConfig = window.UserConfig || {
-          private_api_url: 'https://fc.mingcy.cn/',
+          private_api_url: 'https://fc.43322.cn/',
           page_turning_number: 24,
           error_img: '/fclite/avatar-fallback.svg',
         }
@@ -249,7 +249,7 @@ const { title, description, image } = Astro.props
           var grid = document.getElementById('links-grid')
           if (summary && summary.dataset.state !== 'done') {
             summary.dataset.state = 'done'
-            fetch('https://fc.mingcy.cn/status.json')
+            fetch('https://fc.43322.cn/status.json')
               .then(function (r) {
                 return r.json()
               })

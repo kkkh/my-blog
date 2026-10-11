@@ -3,7 +3,7 @@
    ────────────────────────────────────────────────────────────────
    1. 随机强调色注入（移植 AccentColorInjector.astro，与 fcircle.css 段① 兜底值一致）
    2. data-theme 兜底（新站没有明暗切换时按 localStorage / 系统偏好补一个）
-   3. window.UserConfig（fclite 插件配置，数据源 fc.mingcy.cn）
+   3. window.UserConfig（fclite 插件配置，数据源 fc.43322.cn）
    4. fclite 插件本体（public/fclite/fclite.js 原样并入，去掉末尾自动执行）
    5. 友链状态区（status.json → #links-summary + #links-grid）
 
@@ -139,7 +139,7 @@
      3. fclite 插件配置
   ─────────────────────────────────────────── */
   window.UserConfig = window.UserConfig || {
-    private_api_url: 'https://fc.mingcy.cn/',
+    private_api_url: 'https://fc.43322.cn/',
     page_turning_number: 24,
     error_img: '/fcircle/avatar-fallback.svg',
   }
@@ -334,7 +334,7 @@
     var grid = document.getElementById('links-grid')
     if (!summary || summary.dataset.state === 'done') return
     summary.dataset.state = 'done'
-    fetch('https://fc.mingcy.cn/status.json')
+    fetch('https://fc.43322.cn/status.json')
       .then(function (r) {
         return r.json()
       })
