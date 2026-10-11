@@ -12,19 +12,19 @@ export interface LinkCategory {
 
 export const friendLinks: LinkCategory[] = [
   {
-    title: '大佬们',
+    title: '来看看大佬们',
     links: [
       {
-        name: '茗辰原 の 异世界(老站点)',
-        url: 'https://not.mcy.cloudns.org/',
-        avatar: 'https://mingcy.cn/image/mcy.png',
-        desc: '茗辰原，一个与众不同的异世界，等待你的探索与发现。',
+        name: '秦超',
+        url: 'https://www.43322.cn/',
+        avatar: 'https://www.43322.cn/image/qin.png',
+        desc: '秦超，海内存知己，天涯若比邻。',
       },
       {
-        name: '茗辰原',
-        url: 'https://mingcy.cn',
-        avatar: 'https://mingcy.cn/image/mcy.png',
-        desc: '茶香四溢,编程世界',
+        name: '园枢',
+        url: 'https://jl.43322.cn',
+        avatar: 'https://www.43322.cn/image/qin.png',
+        desc: '天地广阔,大有可为',
       },
       {
         name: '清羽飞扬',
@@ -35,7 +35,7 @@ export const friendLinks: LinkCategory[] = [
       {
         name: '张洪 Heo',
         url: 'https://blog.zhheo.com/',
-        avatar: 'https://mingcy.cn/image/heo.webp',
+        avatar: 'https://www.43322.cn/image/heo.webp',
         desc: '分享设计与科技生活',
       },
       {
