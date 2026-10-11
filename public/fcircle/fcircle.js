@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
-   友圈（Friend-Circle-Lite）自包含脚本 —— 提取自 https://mingcy.cn/links/fcircle
+   友圈（Friend-Circle-Lite）自包含脚本 —— 提取自 https://43322.cn/links/fcircle
    ────────────────────────────────────────────────────────────────
    1. 随机强调色注入（移植 AccentColorInjector.astro，与 fcircle.css 段① 兜底值一致）
    2. data-theme 兜底（新站没有明暗切换时按 localStorage / 系统偏好补一个）
    3. window.UserConfig（fclite 插件配置，数据源 fc.43322.cn）
    4. fclite 插件本体（public/fclite/fclite.js 原样并入，去掉末尾自动执行）
-   5. 友链状态区（status.json → #links-summary + #links-grid）
+   5. 友链状态区（links.json → #links-summary + #links-grid）
 
    用法：<script src="/fcircle/fcircle.js"></script> 即可，幂等，重复引入无副作用。
    ══════════════════════════════════════════════════════════════ */
@@ -334,15 +334,15 @@
     var grid = document.getElementById('links-grid')
     if (!summary || summary.dataset.state === 'done') return
     summary.dataset.state = 'done'
-    fetch('https://fc.43322.cn/status.json')
+    fetch('https://fc.43322.cn/link.json')
       .then(function (r) {
         return r.json()
       })
       .then(function (data) {
-        var links = data.link_status || []
+        var links = data.link_data || []
         var ok = 0
         links.forEach(function (it) {
-          if (it.success) ok++
+          if (it.reachable) ok++
         })
         summary.innerHTML =
           '<span class="stat-ok">' +
@@ -355,8 +355,8 @@
         if (!grid) return
         grid.innerHTML = links
           .map(function (item) {
-            var cls = item.success ? 'ok' : 'fail'
-            var label = item.success ? '正常' : '异常'
+            var cls = item.reachable ? 'ok' : 'fail'
+            var label = item.reachable ? '正常' : '异常'
             return (
               '<a class="status-card ' +
               cls +

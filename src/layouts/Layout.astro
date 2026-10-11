@@ -249,15 +249,15 @@ const { title, description, image } = Astro.props
           var grid = document.getElementById('links-grid')
           if (summary && summary.dataset.state !== 'done') {
             summary.dataset.state = 'done'
-            fetch('https://fc.43322.cn/status.json')
+            fetch('https://fc.43322.cn/link.json')
               .then(function (r) {
                 return r.json()
               })
               .then(function (data) {
-                var links = data.link_status || []
+                var links = data.link_data || []
                 var ok = 0
                 links.forEach(function (it) {
-                  if (it.success) ok++
+                  if (it.reachable) ok++
                 })
                 summary.innerHTML =
                   '<span class="stat-ok">' +
@@ -270,8 +270,8 @@ const { title, description, image } = Astro.props
                 if (!grid) return
                 grid.innerHTML = links
                   .map(function (item) {
-                    var cls = item.success ? 'ok' : 'fail'
-                    var label = item.success ? '正常' : '异常'
+                    var cls = item.reachable ? 'ok' : 'fail'
+                    var label = item.reachable ? '正常' : '异常'
                     return (
                       '<a class="status-card ' +
                       cls +
