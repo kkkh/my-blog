@@ -1,9 +1,9 @@
 ---
-title: 一个人的生活才是常态
-description: 成为一个平静的人 究竟要流多少眼泪
-date: 2026-09-19
+title: 你不必很厉害才能开始
+description: 但你要开始了，才会很厉害
+date: 2023-02-22
 tags:
-  - 风景
-  - 安静
+  - 记录
+  - 生活
 draft: false
 ---
