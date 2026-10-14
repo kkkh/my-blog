@@ -1,0 +1,90 @@
+{
+  "title": "Person Life",
+  "subtitle": "十二张实况照片，拆开封面与视频",
+  "images": [
+    {
+      "alt": "照片 1",
+      "width": 1488,
+      "height": 1976,
+      "cover": "https://cdn.43322.cn/gallery/person-life/01.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 2",
+      "width": 1720,
+      "height": 3728,
+      "cover": "https://cdn.43322.cn/gallery/person-life/02.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 3",
+      "width": 2156,
+      "height": 4096,
+      "cover": "https://cdn.43322.cn/gallery/person-life/03.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 4",
+      "width": 2358,
+      "height": 5112,
+      "cover": "https://cdn.43322.cn/gallery/person-life/04.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 5",
+      "width": 2160,
+      "height": 2160,
+      "cover": "https://cdn.43322.cn/gallery/person-life/05.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 6",
+      "width": 2160,
+      "height": 3240,
+      "cover": "https://cdn.43322.cn/gallery/person-life/06.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 7",
+      "width": 2160,
+      "height": 2880,
+      "cover": "https://cdn.43322.cn/gallery/person-life/07.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 8",
+      "width": 1024,
+      "height": 1024,
+      "cover": "https://cdn.43322.cn/gallery/person-life/08.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 9",
+      "width": 1080,
+      "height": 1440,
+      "cover": "https://cdn.43322.cn/gallery/person-life/09.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 10",
+      "width": 3072,
+      "height": 2048,
+      "cover": "https://cdn.43322.cn/gallery/person-life/10.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 11",
+      "width": 2160,
+      "height": 2880,
+      "cover": "https://cdn.43322.cn/gallery/person-life/11.jpg",
+      "video": ""
+    },
+    {
+      "alt": "照片 12",
+      "width": 1440,
+      "height": 3129,
+      "cover": "https://cdn.43322.cn/gallery/person-life/12.jpg",
+      "video": ""
+    }
+  ]
+}
