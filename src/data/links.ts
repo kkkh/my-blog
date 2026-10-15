@@ -290,6 +290,12 @@ export const friendLinks: LinkCategory[] = [
       },
       {
         name: '博客大联盟',
+        url: 'https://bloginc.cn/20001.html',
+        avatar: 'https://bloginc.cn/favicon.ico',
+        desc: '优质中文博客图鉴',
+      },
+      {
+        name: '博客大联盟',
         url: 'https://bo.ke/',
         avatar: 'https://bo.ke/favicon.ico',
         desc: '发现更多中文独立博客',
