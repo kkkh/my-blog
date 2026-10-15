@@ -1,9 +1,9 @@
 ---
-title: 眼睛与偏爱
-description: 究极一生 只为找到一双愿意为我流泪的眼睛和永不放弃的手
-date: 2026-09-25
+title: 小小诗
+description: 米糕呀
+date: 2026-10-07
 tags:
-  - 眼神
-  - 偏爱
+  - 清纯
+  - 可爱
 draft: false
 ---
