@@ -284,9 +284,15 @@ export const friendLinks: LinkCategory[] = [
       },
       {
         name: '好站网',
-        url: 'https://haozhan.wang/site_detail.php?id=151',
+        url: 'https://haozhan.wang/',
         avatar: 'https://haozhan.wang/favicon.ico',
         desc: '发现好站、展示好站',
+      },
+      {
+        name: '博客大联盟',
+        url: 'https://bo.ke/',
+        avatar: 'https://bo.ke/favicon.ico',
+        desc: '发现更多中文独立博客',
       },
       {
         name: 'BLogsClub',
