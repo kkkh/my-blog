@@ -33,12 +33,6 @@ export const friendLinks: LinkCategory[] = [
         desc: '思考、制作，并留下值得回看的东西。',
       },
       {
-        name: '清羽飞扬',
-        url: 'https://blog.liushen.fun/',
-        avatar: 'https://blog.liushen.fun/info/siteshot.jpg',
-        desc: '柳影曳曳，清酒孤灯，扬笔撒墨，心境如霜',
-      },
-      {
         name: '张洪 Heo',
         url: 'https://blog.zhheo.com/',
         avatar: 'https://www.43322.cn/image/heo.webp',
