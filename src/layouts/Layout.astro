@@ -51,6 +51,11 @@ const { title, description, image } = Astro.props
     <link rel="stylesheet" href="/fancybox/fancybox.min.css" />
     <!-- Pagefind 搜索 UI 样式：head 全局加载，保证首次打开搜索模态框样式已就绪 -->
     <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+    <!-- 搜索脚本预下载：pagefind-ui.js 约 163 KB，首次点开搜索才注入会明显卡顿。
+         这里用 preload 让浏览器尽早低优先级下载（fetchpriority="low" 不抢首屏带宽），
+         SearchModal 后续注入同 URL 的 <script> 时直接命中 HTTP 缓存，onload 立即触发。
+         注意：即使从不搜索的用户也会下载一次；若日后更在意流量，可删掉此行，仅保留 hover 预加载。 -->
+    <link rel="preload" href="/pagefind/pagefind-ui.js" as="script" fetchpriority="low" />
   </head>
   <body>
     <!-- 全局壁纸背景：webp.43322.cn 随机壁纸 + 高斯模糊 + 明暗遮罩，避免影响文字。
