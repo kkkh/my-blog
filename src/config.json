@@ -25,16 +25,18 @@
         "color": "rgb(24, 23, 23)"
       },
       {
-        "name": "X",
-        "icon": "icon-x",
-        "url": "https://x.com/umllm",
-        "color": "rgb(36, 46, 54)"
-      },
-      {
         "name": "Email",
         "icon": "icon-mail",
         "url": "mailto:1@43322.cn",
         "color": "rgb(212, 70, 56)"
+      }
+    ],
+    "_disabledSocials": [
+      {
+        "name": "X",
+        "icon": "icon-x",
+        "url": "https://x.com/umllm",
+        "color": "rgb(36, 46, 54)"
       }
     ],
     "yiyan": "上善若水，水善利万物而不争"
