@@ -1,6 +1,6 @@
 {
   "site": {
-    "url": "https://www.43322.cn",
+    "url": "https://blog.43322.cn",
     "title": "超超",
     "description": "天地广阔，大有可为。",
     "keywords": "超超,blog,qc,qinchao,博客,技术,生活,编程",
@@ -11,7 +11,7 @@
   "author": {
     "name": "超超",
     "twitterId": "@umllm",
-    "avatar": "https://image.43322.cn/image/x-avatar.png"
+    "avatar": "https://image.43322.cn/image/qinchao-avatar.png"
   },
   "hero": {
     "name": "超超",
@@ -25,18 +25,16 @@
         "color": "rgb(24, 23, 23)"
       },
       {
+        "name": "Bilibili",
+        "icon": "icon-bilibili",
+        "url": "https://space.bilibili.com/24694",
+        "color": "rgb(0, 161, 214)"
+      },
+      {
         "name": "Email",
         "icon": "icon-mail",
         "url": "mailto:1@43322.cn",
         "color": "rgb(212, 70, 56)"
-      }
-    ],
-    "_disabledSocials": [
-      {
-        "name": "X",
-        "icon": "icon-x",
-        "url": "https://x.com/umllm",
-        "color": "rgb(36, 46, 54)"
       }
     ],
     "yiyan": "上善若水，水善利万物而不争"

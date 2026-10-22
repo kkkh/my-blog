@@ -2,7 +2,7 @@
 title: 'Astro Gyoza 内容标签与排版特效全指南'
 date: 2022-02-25T17:37:24.618+08:00
 lastMod: 2022-02-25T17:43:52.907+08:00
-cover: 'https://www.43322.cn/image/qin.png'
+cover: 'https://blog.43322.cn/image/qin.png'
 category: '网站建站'
 tags: ['Astro', 'Gyoza', 'MDX', 'KaTeX', 'Markdown']
 draft: false
